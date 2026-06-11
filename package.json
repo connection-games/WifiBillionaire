@@ -42,7 +42,8 @@
       {
         "provider": "github",
         "owner": "connection-games",
-        "repo": "WifiBillionare"
+        "repo": "WifiBillionare",
+        "releaseType": "release"
       }
     ],
     "mac": {
