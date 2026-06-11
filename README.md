@@ -17,8 +17,8 @@ questionable project ideas, and an inner monologue that never stops.
 All versions: [**Releases page**](https://github.com/connection-games/WifiBillionare/releases/latest)
 
 ### Install on macOS
-1. Open the `.dmg` and drag **WiFi Billionaire** into **Applications** (or unzip the
-   `.zip` and do the same).
+1. Open the `.dmg` and follow the arrow — drag **WiFi Billionaire** onto **Applications**
+   (or unzip the `.zip` and do the same).
 2. **First launch only:** the app isn't notarized by Apple yet, so right-click the app
    → **Open** → **Open**. (If macOS still refuses: System Settings → Privacy & Security
    → **Open Anyway**.) After that it opens like any normal app.
@@ -67,6 +67,25 @@ GitHub Release with `WiFi-Billionaire.dmg`, `WiFi-Billionaire.zip`,
 `WiFiBillionaireSetup.exe`, plus the `latest-mac.yml` / `latest.yml` update
 manifests electron-updater needs. The download links at the top of this README
 always point to the newest release automatically.
+
+### Who can publish (security)
+Only the repository owner can publish. The repo is public, but read-only to
+everyone else: outsiders cannot push tags, create releases, or modify code —
+and pull requests from forks run CI with a **read-only** token, so they can
+never upload installers. Releases are produced exclusively by
+`.github/workflows/release.yml` from `v*` tags pushed by the owner, and apps
+auto-update only from this repo's official Releases.
+
+### Installer branding
+The mac DMG ships a branded retina background (navy/green/gold, matching the
+app icon) with a "drag here to install" guide arrow; the Windows installer uses
+matching sidebar/header artwork. Regenerate the artwork with:
+```bash
+cd build && swift make-installer-assets.swift . \
+  && tiffutil -cathidpicheck dmg-bg.png dmg-bg@2x.png -out dmg-background.tiff \
+  && sips -s format bmp installerSidebar.png --out installerSidebar.bmp \
+  && sips -s format bmp installerHeader.png --out installerHeader.bmp
+```
 
 ### Future updates
 1. Make changes, bump the version in `package.json` (e.g. `5.0.1`).

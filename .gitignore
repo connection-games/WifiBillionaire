@@ -10,3 +10,7 @@ build/icon_1024.png
 .DS_Store
 build/WiFi Billionaire.app/
 build/dmg/
+build/dmg-bg.png
+build/dmg-bg@2x.png
+build/installerSidebar.png
+build/installerHeader.png
