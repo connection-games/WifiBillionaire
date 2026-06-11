@@ -19,6 +19,7 @@
       <div class="badge" id="heat-pill" style="display:none"></div>
       <div class="spacer"></div>
       <button id="prestige-pill" style="display:none">♻️ PRESTIGE READY</button>
+      <button id="notif-btn" title="Notifications">🔔<span id="notif-badge" style="display:none">0</span></button>
       <button id="theme-btn" title="Toggle dark mode">🌙</button>
       <button id="settings-btn" title="Settings">⚙️</button>
     </header>
@@ -45,26 +46,45 @@
           <button id="hustle-btn">HUSTLE 💪<span id="hustle-val">+$1</span></button>
         </div>
 
-        <div id="resources">
-          <div class="res">
-            <div class="res-label"><span>⚡ Energy</span><span id="energy-txt">100</span></div>
-            <div class="bar"><div class="fill energy" id="energy-fill" style="width:100%"></div></div>
+        <div id="char-panel">
+          <div id="char-bars" aria-hidden="true"></div>
+          <div id="char-head">
+            <div id="char-status">
+              <span id="status-icon">💻</span>
+              <div class="status-text">
+                <b id="status-label">Working</b>
+                <span id="status-sub">getting set up…</span>
+              </div>
+            </div>
+            <div id="char-badges">
+              <span class="cbadge" id="mood-badge" title="Mood">🙂 Fine</span>
+              <span class="cbadge" id="level-badge" title="Character level">⭐ Lv 1</span>
+              <span class="cbadge cell" id="cell-badge" style="display:none">🔒 CELL 4B</span>
+            </div>
           </div>
-          <div class="res">
-            <div class="res-label"><span>😊 Happiness</span><span id="happiness-txt">60</span></div>
-            <div class="bar"><div class="fill happiness" id="happiness-fill" style="width:60%"></div></div>
+          <div id="char-meters">
+            <div class="meter">
+              <div class="meter-label"><span>⚡ Energy</span><b id="energy-txt">100</b></div>
+              <div class="bar"><div class="fill energy" id="energy-fill" style="width:100%"></div></div>
+            </div>
+            <div class="meter">
+              <div class="meter-label"><span>😊 Happiness</span><b id="happiness-txt">60</b></div>
+              <div class="bar"><div class="fill happiness" id="happiness-fill" style="width:60%"></div></div>
+            </div>
+            <div class="meter">
+              <div class="meter-label"><span>🔥 Motivation</span><b id="motivation-txt">75</b></div>
+              <div class="bar"><div class="fill motivation" id="motivation-fill" style="width:75%"></div></div>
+            </div>
+            <div class="meter">
+              <div class="meter-label"><span>🫠 Stress</span><b id="stress-txt">0</b></div>
+              <div class="bar"><div class="fill stress" id="stress-fill" style="width:0%"></div></div>
+            </div>
           </div>
-          <div class="res">
-            <div class="res-label"><span>🔥 Motivation</span><span id="motivation-txt">75</span></div>
-            <div class="bar"><div class="fill motivation" id="motivation-fill" style="width:75%"></div></div>
+          <div id="char-chips">
+            <span class="cchip">🌟 Reputation <b id="rep-val">0</b></span>
+            <span class="cchip">🧠 Intelligence <b id="int-val">10</b></span>
+            <span class="cchip">📱 Fans <b id="followers-val">0</b></span>
           </div>
-          <div class="res">
-            <div class="res-label"><span>🫠 Stress</span><span id="stress-txt">0</span></div>
-            <div class="bar"><div class="fill stress" id="stress-fill" style="width:0%"></div></div>
-          </div>
-          <div class="res-num">🌟 Rep: <b id="rep-val">0</b></div>
-          <div class="res-num">🧠 Int: <b id="int-val">10</b></div>
-          <div class="res-num">📱 Fans: <b id="followers-val">0</b></div>
         </div>
       </section>
 
@@ -77,6 +97,10 @@
   </div>
 
   <div id="toasts"></div>
+  <div id="notif-panel">
+    <div class="notif-head"><b>🔔 Notifications</b><button class="btn subtle" id="notif-clear">Clear all</button></div>
+    <div class="notif-list" id="notif-list"></div>
+  </div>
   <div id="modal-overlay"><div id="modal-content"></div></div>
 
   <!-- Scam Sim texting app -->

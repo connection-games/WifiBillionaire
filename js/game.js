@@ -286,7 +286,7 @@ WB.GAME = (function () {
     s.crypto.holdings += amt;
     s.crypto.invested += amt;
     s.stats.cryptoTrades++;
-    UI.toast(`🪙 Bought ${WB.fmt(amt, true)} of crypto. What could go wrong?`, "info");
+    UI.toast(`🪙 Bought ${WB.fmt(amt, true)} of crypto. What could go wrong?`, "good");
   }
   function sellCrypto() {
     if (s.crypto.holdings < 1) return;

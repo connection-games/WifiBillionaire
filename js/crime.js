@@ -99,7 +99,7 @@ WB.CRIME = (function () {
     S().money -= cost;
     c.prisonUntil = 0;
     addHeat(8);
-    WB.UI.toast(`⚖️ Posted bail for ${WB.fmt(cost, true)}. Free… for now. (+heat)`, "info");
+    WB.UI.toast(`⚖️ Posted bail for ${WB.fmt(cost, true)}. Free… for now. (+heat)`, "good");
     return true;
   }
 
