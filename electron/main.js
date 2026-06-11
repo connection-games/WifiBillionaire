@@ -5,7 +5,7 @@
      and errors to the renderer for a friendly in-app banner. */
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -79,31 +79,75 @@ function createWindow() {
 }
 
 // ---------- Auto-update ----------
+// On launch the app checks GitHub Releases and asks "New Update! Install now?"
+// (native Yes/No dialog). Windows installs via electron-updater (works unsigned).
+// macOS cannot use electron-updater without an Apple Developer ID signature, so
+// it self-updates: download release zip -> verify sha512 -> swap .app -> relaunch.
+const UPDATE_BASE = 'https://github.com/connection-games/WifiBillionare/releases/latest/download/';
+const CHECK_EVERY = 6 * 60 * 60 * 1000;
+
 function sendStatus(win, payload) {
   if (win && !win.isDestroyed()) win.webContents.send('updater:status', payload);
 }
 
 let updaterStarted = false;
+let updating = false;
+let declinedVersion = null;
+
 function initUpdater(win) {
   if (updaterStarted) return;
   updaterStarted = true;
   if (!app.isPackaged) { sendStatus(win, { state: 'dev' }); return; } // no updates in dev
+  if (process.platform === 'darwin') initMacUpdater(win);
+  else initWinUpdater(win);
+}
 
+async function askInstall(win, version) {
+  const r = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'New Update!',
+    message: 'New Update! 🎉',
+    detail: `Version ${version} is ready (you have ${app.getVersion()}).\nWish to install now? The game restarts by itself — your save is kept.`,
+    buttons: ['Yes', 'No'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (r.response !== 0) { declinedVersion = version; return false; }
+  return true;
+}
+
+// --- Windows: electron-updater (NSIS auto-updates without code signing) ---
+function initWinUpdater(win) {
   let autoUpdater;
   try { autoUpdater = require('electron-updater').autoUpdater; }
   catch (e) { sendStatus(win, { state: 'error', message: 'updater unavailable' }); return; }
 
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true; // applies on quit even if user ignores the banner
+  autoUpdater.autoDownload = false; // ask first
+  autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => sendStatus(win, { state: 'checking' }));
-  autoUpdater.on('update-available', (i) => sendStatus(win, { state: 'available', version: i && i.version }));
+  autoUpdater.on('update-available', async (i) => {
+    const version = (i && i.version) || '?';
+    sendStatus(win, { state: 'available', version });
+    if (updating || version === declinedVersion) return;
+    if (await askInstall(win, version)) {
+      updating = true;
+      try { autoUpdater.downloadUpdate(); }
+      catch (e) { updating = false; sendStatus(win, { state: 'error', message: String(e) }); }
+    }
+  });
   autoUpdater.on('update-not-available', () => sendStatus(win, { state: 'none' }));
   autoUpdater.on('download-progress', (p) => sendStatus(win, {
     state: 'progress', percent: Math.round(p.percent || 0), bps: p.bytesPerSecond || 0,
   }));
-  autoUpdater.on('update-downloaded', (i) => sendStatus(win, { state: 'downloaded', version: i && i.version }));
-  autoUpdater.on('error', (err) => sendStatus(win, { state: 'error', message: String((err && err.message) || err) }));
+  autoUpdater.on('update-downloaded', (i) => {
+    sendStatus(win, { state: 'downloaded', version: i && i.version });
+    setImmediate(() => { try { autoUpdater.quitAndInstall(false, true); } catch (e) {} });
+  });
+  autoUpdater.on('error', (err) => {
+    updating = false;
+    sendStatus(win, { state: 'error', message: String((err && err.message) || err) });
+  });
 
   ipcMain.removeAllListeners('updater:restart');
   ipcMain.on('updater:restart', () => { try { autoUpdater.quitAndInstall(); } catch (e) {} });
@@ -111,8 +155,103 @@ function initUpdater(win) {
   ipcMain.on('updater:check', () => { try { autoUpdater.checkForUpdates(); } catch (e) {} });
 
   try { autoUpdater.checkForUpdates(); } catch (e) {}
-  // re-check every 6 hours for long sessions
-  setInterval(() => { try { autoUpdater.checkForUpdates(); } catch (e) {} }, 6 * 60 * 60 * 1000);
+  setInterval(() => { try { autoUpdater.checkForUpdates(); } catch (e) {} }, CHECK_EVERY);
+}
+
+// --- macOS: self-updater (no Apple signature required) ---
+function cmpVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0; const y = pb[i] || 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+
+function initMacUpdater(win) {
+  const check = async (explicit) => {
+    if (updating) return;
+    try {
+      sendStatus(win, { state: 'checking' });
+      const res = await fetch(UPDATE_BASE + 'latest-mac.yml', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const yml = await res.text();
+      const version = (yml.match(/^version:\s*(\S+)/m) || [])[1];
+      if (!version || cmpVersions(version, app.getVersion()) <= 0) {
+        sendStatus(win, { state: 'none' });
+        return;
+      }
+      sendStatus(win, { state: 'available', version });
+      if (!explicit && version === declinedVersion) return;
+      const sha512 = (yml.match(/url:\s*WiFi-Billionaire\.zip[\s\S]*?sha512:\s*(\S+)/) || [])[1] || null;
+      if (!(await askInstall(win, version))) return;
+      updating = true;
+      await applyMacUpdate(win, version, sha512);
+    } catch (err) {
+      updating = false;
+      sendStatus(win, { state: 'error', message: String((err && err.message) || err) });
+    }
+  };
+
+  ipcMain.removeAllListeners('updater:check');
+  ipcMain.on('updater:check', () => check(true));
+  ipcMain.removeAllListeners('updater:restart');
+
+  check(false);
+  setInterval(() => check(false), CHECK_EVERY);
+}
+
+async function applyMacUpdate(win, version, sha512) {
+  const crypto = require('crypto');
+  const { execFile } = require('child_process');
+  const run = (cmd, args) => new Promise((resolve, reject) =>
+    execFile(cmd, args, (err) => (err ? reject(err) : resolve())));
+
+  // .app bundle of the running instance (execPath = .app/Contents/MacOS/<bin>)
+  const appPath = path.resolve(process.execPath, '..', '..', '..');
+  if (!appPath.endsWith('.app')) throw new Error('not running from an installed .app');
+
+  const tmp = path.join(app.getPath('temp'), 'wifi-billionaire-update');
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  const zipPath = path.join(tmp, 'update.zip');
+
+  const res = await fetch(UPDATE_BASE + 'WiFi-Billionaire.zip', { cache: 'no-store' });
+  if (!res.ok || !res.body) throw new Error('download failed: HTTP ' + res.status);
+  const total = Number(res.headers.get('content-length')) || 0;
+  const out = fs.createWriteStream(zipPath);
+  const reader = res.body.getReader();
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    got += value.length;
+    out.write(Buffer.from(value));
+    sendStatus(win, { state: 'progress', percent: total ? Math.round((got / total) * 100) : 0, bps: 0 });
+  }
+  await new Promise((resolve) => out.end(resolve));
+
+  if (sha512) {
+    const hash = crypto.createHash('sha512').update(fs.readFileSync(zipPath)).digest('base64');
+    if (hash !== sha512) throw new Error('update checksum mismatch — install aborted');
+  }
+
+  const extracted = path.join(tmp, 'extracted');
+  await run('/usr/bin/ditto', ['-xk', zipPath, extracted]);
+  const newApp = path.join(extracted, 'WiFi Billionaire.app');
+  if (!fs.existsSync(path.join(newApp, 'Contents', 'MacOS'))) throw new Error('update package invalid');
+
+  sendStatus(win, { state: 'downloaded', version });
+
+  // swap the bundle (running process keeps its open files; new launch uses new app)
+  const backup = path.join(tmp, 'previous.app');
+  await run('/bin/mv', [appPath, backup]);
+  try { await run('/bin/mv', [newApp, appPath]); }
+  catch (e) { await run('/bin/mv', [backup, appPath]); throw e; }
+
+  app.relaunch();
+  app.exit(0);
 }
 
 // ---------- Lifecycle ----------

@@ -55,7 +55,7 @@
   D.onUpdateStatus((s) => {
     switch (s.state) {
       case 'available':
-        render(`<span class="upd-spin"></span><div><b>Update available${s.version ? ' (v' + s.version + ')' : ''}</b><div class="upd-sub">Downloading in the background…</div></div>`);
+        render(`<span class="upd-spin"></span><div><b>Update available${s.version ? ' (v' + s.version + ')' : ''}</b><div class="upd-sub">Waiting for your choice…</div></div>`);
         break;
       case 'progress':
         render(`<span class="upd-spin"></span><div style="flex:1"><b>Downloading update… ${s.percent}%</b>

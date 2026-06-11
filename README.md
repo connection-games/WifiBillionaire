@@ -19,9 +19,14 @@ All versions: [**Releases page**](https://github.com/connection-games/WifiBillio
 ### Install on macOS
 1. Open the `.dmg` and follow the arrow — drag **WiFi Billionaire** onto **Applications**
    (or unzip the `.zip` and do the same).
-2. **First launch only:** the app isn't notarized by Apple yet, so right-click the app
-   → **Open** → **Open**. (If macOS still refuses: System Settings → Privacy & Security
-   → **Open Anyway**.) After that it opens like any normal app.
+2. **First launch only:** the app isn't notarized by Apple yet, so macOS may claim it is
+   "damaged" or from an unidentified developer (it isn't — that's just Gatekeeper on
+   unsigned apps). Fix it with one Terminal command, then open normally:
+   ```bash
+   xattr -cr "/Applications/WiFi Billionaire.app"
+   ```
+   (Or: System Settings → Privacy & Security → **Open Anyway**.) This is only ever
+   needed once — updates installed by the app itself never trigger it again.
 
 ### Install on Windows
 Run `WiFiBillionaireSetup.exe` → Next → done. SmartScreen may warn on first install —
@@ -93,13 +98,19 @@ cd build && swift make-installer-assets.swift . \
 3. CI builds & publishes the new release. Installed apps check on startup (and every 6h),
    download in the background, and show a **Restart to update** banner. User saves are kept.
 
+### How auto-update works (v5.0.3+)
+On every launch (and every 6 h) the app checks this repo's latest release. If a newer
+version exists it shows a native **"New Update! Wish to install now?" Yes/No** dialog:
+- **Windows:** electron-updater downloads the NSIS package and silently reinstalls + restarts.
+- **macOS:** unsigned apps can't use Apple's update path, so the app updates itself —
+  it downloads `WiFi-Billionaire.zip`, verifies the release's sha512 checksum, swaps
+  the `.app` bundle in place, and relaunches. No Gatekeeper prompt, saves untouched.
+
 ### Auto-update testing
 - Auto-update only runs in the **packaged** app (skipped in `npm start`).
-- Install an older version (e.g. tag `v5.0.0`), publish a newer one (`v5.0.1`), relaunch the
-  old app: it shows "Downloading update…", then "Update ready — Restart". Click Restart.
-- To watch logs, launch from a terminal; electron-updater logs to the console and to
-  `userData/logs`. macOS auto-update requires a **signed** app (Apple Developer ID);
-  Windows NSIS auto-updates unsigned (SmartScreen prompt on first install).
+- Install an older version from its release page (not "latest"), publish a newer tag,
+  then launch the old app → the "New Update!" dialog appears → Yes → progress bar →
+  the game restarts on the new version with saves intact.
 
 ### Where user data lives (audited)
 All saves/settings are `localStorage`, transparently backed by a JSON file in the OS
