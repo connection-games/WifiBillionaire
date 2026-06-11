@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WiFi Billionaire</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>📶</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <header id="topbar">
+      <div id="logo">📶 WiFi <span>Billionaire</span></div>
+      <div id="money">$0</div>
+      <div id="ips">$0/sec</div>
+      <div class="badge" id="era-badge">2015 · Internet Era</div>
+      <div class="badge" id="boost-badge" style="display:none"></div>
+      <div class="badge" id="heat-pill" style="display:none"></div>
+      <div class="spacer"></div>
+      <button id="prestige-pill" style="display:none">♻️ PRESTIGE READY</button>
+      <button id="theme-btn" title="Toggle dark mode">🌙</button>
+      <button id="settings-btn" title="Settings">⚙️</button>
+    </header>
+
+    <div id="goal-banner">🎯 <b>Goal:</b>&nbsp;<span id="goal-text">Earn your first $10</span></div>
+
+    <main id="main">
+
+      <section id="scene">
+        <div id="room-wrap">
+          <canvas id="room-canvas" width="320" height="180"></canvas>
+          <div id="housing-name">Parents' Bedroom</div>
+          <div id="bubble"></div>
+          <div id="project-box" style="display:none">
+            <div id="project-name"></div>
+            <div class="bar"><div class="fill project" id="project-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div id="actions-bar"></div>
+
+        <div id="controls">
+          <div id="activities"></div>
+          <button id="hustle-btn">HUSTLE 💪<span id="hustle-val">+$1</span></button>
+        </div>
+
+        <div id="resources">
+          <div class="res">
+            <div class="res-label"><span>⚡ Energy</span><span id="energy-txt">100</span></div>
+            <div class="bar"><div class="fill energy" id="energy-fill" style="width:100%"></div></div>
+          </div>
+          <div class="res">
+            <div class="res-label"><span>😊 Happiness</span><span id="happiness-txt">60</span></div>
+            <div class="bar"><div class="fill happiness" id="happiness-fill" style="width:60%"></div></div>
+          </div>
+          <div class="res">
+            <div class="res-label"><span>🔥 Motivation</span><span id="motivation-txt">75</span></div>
+            <div class="bar"><div class="fill motivation" id="motivation-fill" style="width:75%"></div></div>
+          </div>
+          <div class="res">
+            <div class="res-label"><span>🫠 Stress</span><span id="stress-txt">0</span></div>
+            <div class="bar"><div class="fill stress" id="stress-fill" style="width:0%"></div></div>
+          </div>
+          <div class="res-num">🌟 Rep: <b id="rep-val">0</b></div>
+          <div class="res-num">🧠 Int: <b id="int-val">10</b></div>
+          <div class="res-num">📱 Fans: <b id="followers-val">0</b></div>
+        </div>
+      </section>
+
+      <aside id="side">
+        <nav id="tabs"></nav>
+        <div id="tab-content"></div>
+      </aside>
+
+    </main>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="modal-overlay"><div id="modal-content"></div></div>
+
+  <!-- Scam Sim texting app -->
+  <div id="scam-app">
+    <div class="scam-phone">
+      <div class="scam-header">
+        <button id="scam-back" class="scam-navbtn" style="display:none">‹</button>
+        <div class="scam-head-main">
+          <div id="scam-title">📱 Messages</div>
+          <div id="scam-sub">Inbox</div>
+        </div>
+        <button id="scam-close" class="scam-navbtn">✕</button>
+      </div>
+      <div id="scam-body"></div>
+    </div>
+  </div>
+
+  <!-- Login / disclaimer -->
+  <div id="splash">
+    <div class="login-card">
+      <div class="login-logo">📶</div>
+      <div class="login-title">WiFi <span>Billionaire</span></div>
+      <div class="login-by">a <b>Blanco Games</b> production</div>
+      <div class="disclaimer">
+        <div class="disc-head">⚠️ DISCLAIMER — PLEASE READ</div>
+        <p>WiFi Billionaire is a work of <b>satire and fiction</b>, made purely for comedy and entertainment.</p>
+        <p>The “Scam Sim” mode is an over-the-top <b>parody</b>. All “victims” are fictional AI characters. It does <b>not</b> teach, encourage, or endorse real fraud, scams, or any illegal activity. Doing these things in real life is harmful and a crime.</p>
+        <p>All money, crimes, and consequences exist only inside this game. Be a good human out there. 💙</p>
+      </div>
+      <button id="play-btn" class="btn primary login-play">▶ Play</button>
+      <div class="login-foot">© 2026 Blanco Games · For entertainment only</div>
+    </div>
+  </div>
+
+  <script src="js/desktop.js"></script>
+  <script src="js/secrets.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/thoughts.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/crime.js"></script>
+  <script src="js/scam.js"></script>
+  <script src="js/actions.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/room.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    (function () {
+      const sp = document.getElementById('splash');
+      const play = document.getElementById('play-btn');
+      const dismiss = () => { sp.classList.add('out'); setTimeout(() => sp.remove(), 700); };
+      play.addEventListener('click', dismiss);
+    })();
+  </script>
+</body>
+</html>

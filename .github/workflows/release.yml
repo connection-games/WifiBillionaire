@@ -1,0 +1,38 @@
+name: Build & Release
+
+# Push a version tag (e.g. v5.0.1) to build installers for BOTH platforms and
+# publish them to a GitHub Release. electron-updater reads that release to update.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & publish (electron-builder)
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds. To enable macOS auto-update + notarization, add the
+          # CSC_LINK / CSC_KEY_PASSWORD / APPLE_ID secrets and remove this line.
+          CSC_IDENTITY_AUTO_DISCOVERY: false

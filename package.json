@@ -1,0 +1,76 @@
+{
+  "name": "wifi-billionaire",
+  "version": "5.0.0",
+  "productName": "WiFi Billionaire",
+  "description": "WiFi Billionaire \u2014 an idle/life simulator by Blanco Games.",
+  "author": "Blanco Games",
+  "license": "UNLICENSED",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "release": "electron-builder --publish always",
+    "release:mac": "electron-builder --mac --publish always",
+    "release:win": "electron-builder --win --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.blancogames.wifibillionaire",
+    "productName": "WiFi Billionaire",
+    "copyright": "\u00a9 2026 Blanco Games",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "connection-games",
+        "repo": "WifiBillionare"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.simulation-games",
+      "icon": "build/icon.png",
+      "artifactName": "WiFi Billionaire.${ext}",
+      "identity": null
+    },
+    "dmg": {
+      "title": "WiFi Billionaire"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "WiFiBillionaireSetup.${ext}",
+      "shortcutName": "WiFi Billionaire",
+      "uninstallDisplayName": "WiFi Billionaire"
+    }
+  }
+}

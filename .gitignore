@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/win/
+build/win-staging/
+build/AppIcon.iconset/
+build/*.dmg
+build/*.zip
+build/icon_1024.png
+*.log
+.DS_Store
+build/WiFi Billionaire.app/
+build/dmg/
