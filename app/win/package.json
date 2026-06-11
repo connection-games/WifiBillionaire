@@ -2,8 +2,8 @@
   "name": "wifi-billionaire",
   "productName": "WiFi Billionaire",
   "version": "5.0.0",
-  "description": "Idle/life simulator by Blanco Games",
+  "description": "Idle/life simulator by Connection Games",
   "main": "main.js",
-  "author": "Blanco Games",
+  "author": "Connection Games",
   "license": "UNLICENSED"
 }

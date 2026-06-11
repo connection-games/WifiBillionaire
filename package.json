@@ -1,9 +1,9 @@
 {
   "name": "wifi-billionaire",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "productName": "WiFi Billionaire",
-  "description": "WiFi Billionaire \u2014 an idle/life simulator by Blanco Games.",
-  "author": "Blanco Games",
+  "description": "WiFi Billionaire \u2014 an idle/life simulator by Connection Games.",
+  "author": "Connection Games",
   "license": "UNLICENSED",
   "main": "electron/main.js",
   "scripts": {
@@ -24,9 +24,9 @@
     "electron-updater": "^6.3.9"
   },
   "build": {
-    "appId": "com.blancogames.wifibillionaire",
+    "appId": "com.connectiongames.wifibillionaire",
     "productName": "WiFi Billionaire",
-    "copyright": "\u00a9 2026 Blanco Games",
+    "copyright": "\u00a9 2026 Connection Games",
     "directories": {
       "output": "dist",
       "buildResources": "build"

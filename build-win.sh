@@ -38,7 +38,7 @@ cp -R "$STAGE/." "$APPDIR/resources/app/"
 mv "$APPDIR/electron.exe" "$APPDIR/WiFi Billionaire.exe"
 
 cat > "$APPDIR/README.txt" << 'EOF'
-WiFi Billionaire — by Blanco Games
+WiFi Billionaire — by Connection Games
 ==================================
 To play: double-click "WiFi Billionaire.exe".
 Windows may show a SmartScreen warning the first time (the app is unsigned) —
