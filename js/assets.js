@@ -105,7 +105,7 @@ WB.ASSETS = (function () {
     const h = st.invest[id] || (st.invest[id] = { value: 0, invested: 0 });
     h.value += amt;
     h.invested += amt;
-    WB.UI.toast(`${def.icon} Invested ${WB.fmt(amt, true)} in ${def.name}.`, "info");
+    WB.UI.toast(`${def.icon} Invested ${WB.fmt(amt, true)} in ${def.name}.`, "good");
     return true;
   }
   function investSell(id) {
@@ -161,7 +161,7 @@ WB.ASSETS = (function () {
     const p = STAFF.find(x => x.id === id);
     if (!p || !st.staff[id]) return false;
     delete st.staff[id];
-    WB.UI.toast(`${p.icon} ${p.name} has left the company. The exit interview was awkward.`, "info");
+    WB.UI.toast(`${p.icon} ${p.name} has left the company. The exit interview was awkward.`, "good");
     return true;
   }
 

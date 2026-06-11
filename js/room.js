@@ -233,7 +233,7 @@ WB.ROOM = (function () {
     return { dx, dy, dw };
   }
 
-  function drawScreens(eq, desk, state) {
+  function drawScreens(eq, desk, state, focus) {
     const { dx, dy, dw } = desk;
     const cx = dx + dw / 2;
     const mt = eq.monitor, lt = eq.laptop;
@@ -244,6 +244,39 @@ WB.ROOM = (function () {
       px(sx - 1, sy - 1, sw + 2, sh + 2, "#15181f");
       px(sx, sy, sw, sh, off ? "#10131a" : "#15314a");
       if (off) return;
+      if (focus === "crypto") {
+        // candlestick chart — the only honest part of crypto
+        px(sx, sy, sw, sh, "#101b26");
+        const rc = srand(Math.floor(frame / 10) * 13 + 5);
+        const n = Math.floor((sw - 6) / 5);
+        for (let i = 0; i < n; i++) {
+          const up = rc() > 0.45;
+          const bh = 3 + Math.floor(rc() * (sh - 10));
+          const by = sy + sh - 3 - bh;
+          const col = up ? "#46e0a0" : "#ff6b5e";
+          px(sx + 3 + i * 5, by - 2, 1, bh + 4, col); // wick
+          px(sx + 2 + i * 5, by, 3, bh, col);         // body
+        }
+        px(sx, sy + sh + 1, sw, 1, "rgba(70,224,160,0.25)");
+        return;
+      }
+      if (focus === "content") {
+        // video editing timeline
+        px(sx, sy, sw, sh, "#1a1426");
+        px(sx + 3, sy + 3, sw - 6, Math.max(4, sh - 14), "#2b2140"); // preview window
+        px(sx + 5, sy + 5, 6, 4, "#e8d27f"); // tiny face cam
+        const ty = sy + sh - 8;
+        ["#c79bf2", "#7fb4e8", "#5fd3a5"].forEach((c, i) => px(sx + 3 + i * 9, ty + (i % 2) * 3, 8, 2, c)); // clips
+        const ph = sx + 3 + ((frame * 1.5) % (sw - 6));
+        px(ph, ty - 2, 1, 8, "#fff"); // playhead
+        return;
+      }
+      if (focus === "study") {
+        // documentation page, mostly unread
+        px(sx, sy, sw, sh, "#d8d2c2");
+        for (let i = 0; i < Math.floor((sh - 6) / 4); i++) px(sx + 3, sy + 3 + i * 4, sw - 8, 2, i === 0 ? "#5a5248" : "#a59c8c");
+        return;
+      }
       const lines = Math.floor((sh - 4) / 4);
       for (let i = 0; i < lines; i++) {
         const lw = 4 + Math.floor(r() * (sw - 10));
@@ -329,13 +362,12 @@ WB.ROOM = (function () {
     px(cx - 10, chy + 22, 16, 2, "#444a55");             // base
 
     if (state === "rest") {
-      // slumped on the desk, Z's floating
-      px(cx - 8, dy - 12, 18, 8, ERA_HOODIE[era]);       // hunched back
-      px(cx + 2, dy - 16, 9, 6, HAIR);                   // head on desk
-      px(cx + 3, dy - 11, 8, 4, SKIN);
-      const zf = frame % 24;
-      px(cx + 14, dy - 22 - zf / 3, 3, 3, "rgba(255,255,255," + (1 - zf / 26) + ")");
-      if (zf > 8) px(cx + 19, dy - 28 - zf / 4, 2, 2, "rgba(255,255,255," + (1 - zf / 26) + ")");
+      // off to a proper bed (bottom-left), chair sits empty
+      px(cx - 16, chy - 26, 6, 38, cc);
+      px(cx - 14, chy + 10, 24, 4, cc);
+      px(cx - 4, chy + 14, 3, 8, "#444a55");
+      px(cx - 10, chy + 22, 16, 2, "#444a55");
+      drawBedSleeper(era);
       return;
     }
 
@@ -351,6 +383,155 @@ WB.ROOM = (function () {
     px(cx - 11, hy + 14, 3, armY - (hy + 14), ERA_HOODIE[era]);
     px(cx + 8, hy + 14, 3, armY - (hy + 14) + (bob ? 1 : 0), ERA_HOODIE[era]);
     px(cx - 11, armY, 3, 3, SKIN); px(cx + 8, armY + (bob ? 1 : 0), 3, 3, SKIN);
+  }
+
+  // ---------- Situation set-pieces ----------
+  function drawBedSleeper(era) {
+    const bx = 26, by = FLOOR_Y + 18; // bed sits on the floor, bottom-left
+    const breathe = Math.floor(frame / 7) % 2;
+    px(bx - 4, by - 22, 5, 34, "#5b432e");                 // headboard
+    px(bx + 64, by - 10, 5, 22, "#5b432e");                // footboard
+    px(bx, by, 66, 8, "#6e5238");                          // frame
+    px(bx, by - 6, 66, 7, "#e8e2d4");                      // mattress
+    px(bx + 1, by - 11, 14, 6, "#f4efe2");                 // pillow
+    // sleeper: head on pillow, body bump under blanket
+    px(bx + 4, by - 15, 9, 4, HAIR);
+    px(bx + 5, by - 12, 8, 5, SKIN);
+    px(bx + 14, by - 10 - breathe, 48, 6 + breathe, ERA_HOODIE[era]); // blanket over body
+    px(bx + 14, by - 10 - breathe, 48, 2, shade(ERA_HOODIE[era]));
+    px(bx + 50, by - 8 - breathe, 12, 4, "#e8e2d4");       // feet poke out
+    // snoring Z's drift up from the head
+    const zf = frame % 28;
+    const za = Math.max(0, 1 - zf / 28);
+    px(bx + 12, by - 20 - zf / 2.4, 3, 3, `rgba(255,255,255,${za})`);
+    if (zf > 9) px(bx + 17, by - 26 - zf / 3, 2, 2, `rgba(255,255,255,${za * 0.8})`);
+    if (zf > 18) px(bx + 21, by - 31 - zf / 4, 2, 2, `rgba(255,255,255,${za * 0.6})`);
+    if (Math.floor(frame / 14) % 2) px(bx + 13, by - 9, 2, 1, "#d6a276"); // open mouth, peak snore
+  }
+
+  function drawContentStudio(desk) {
+    const { dx, dy, dw } = desk;
+    const rx = dx + dw + 18; // ring light right of the desk
+    px(rx + 5, FLOOR_Y - 26, 2, 26, "#3a3f4a");            // pole
+    px(rx - 1, FLOOR_Y + 0, 14, 2, "#3a3f4a");             // feet
+    const glow = Math.floor(frame / 4) % 5 !== 4;
+    const ring = glow ? "#fff3c4" : "#8a8276";
+    for (let i = 0; i < 10; i++) {                          // the ring, pixel circle
+      const a = (i / 10) * Math.PI * 2;
+      px(rx + 6 + Math.cos(a) * 8, FLOOR_Y - 34 + Math.sin(a) * 8, 2, 2, ring);
+    }
+    px(rx + 4, FLOOR_Y - 36, 5, 5, "#15181f");             // phone in the ring
+    px(rx + 5, FLOOR_Y - 35, 3, 3, "#1c4666");
+    if (Math.floor(frame / 6) % 2) px(rx + 5, FLOOR_Y - 41, 2, 2, "#ff453a"); // REC
+    // paparazzi-style camera flashes
+    if (frame % 34 < 2) {
+      ctx.fillStyle = "rgba(255,255,255,0.20)";
+      ctx.fillRect(0, 0, W, H);
+      const fx = 60 + (frame * 37) % 200, fy = 30 + (frame * 23) % 60;
+      px(fx, fy, 3, 3, "#fff"); px(fx - 3, fy + 1, 9, 1, "#fff"); px(fx + 1, fy - 3, 1, 9, "#fff");
+    }
+  }
+
+  function drawAIBuddy(desk) {
+    const { dx } = desk;
+    const rx = dx - 26, ry = FLOOR_Y + 10; // little helper bot left of the desk
+    const hover = Math.floor(Math.sin(frame / 6) * 2);
+    px(rx, ry + hover, 14, 12, "#33415c");                  // body
+    px(rx + 2, ry + 2 + hover, 10, 5, "#1c2233");           // face
+    const eye = 2 + (Math.floor(frame / 8) % 3) * 3;        // scanning eye
+    px(rx + eye, ry + 4 + hover, 2, 2, "#5eead4");
+    px(rx + 6, ry - 4 + hover, 2, 4, "#33415c");            // antenna
+    px(rx + 5, ry - 7 + hover, 3, 3, frame % 10 < 5 ? "#46e0a0" : "#1f4a3c");
+    px(rx + 2, ry + 12 + hover, 3, 2, "#222"); px(rx + 9, ry + 12 + hover, 3, 2, "#222");
+  }
+
+  function drawStudyProps(desk) {
+    const { dx, dy } = desk;
+    px(dx + 26, dy - 5, 16, 5, "#f4efe2");                  // open book on the desk
+    px(dx + 33, dy - 5, 2, 5, "#b8412f");                   // spine
+    px(dx + 28, dy - 4, 4, 1, "#a59c8c"); px(dx + 37, dy - 4, 4, 1, "#a59c8c");
+    px(dx + 28, dy - 2, 4, 1, "#a59c8c"); px(dx + 37, dy - 2, 4, 1, "#a59c8c");
+    if (Math.floor(frame / 12) % 4 === 0) px(dx + 42, dy - 6, 2, 3, "#f4efe2"); // page flip
+  }
+
+  // ---------- Prison cell (the whole room changes) ----------
+  function drawPrison(s) {
+    // stone walls + concrete floor
+    px(0, 0, W, FLOOR_Y, "#4b4e55");
+    px(0, 0, W, 12, "#3f424a");
+    px(0, FLOOR_Y - 6, W, 6, "#3f424a");
+    for (let row = 0; row < 9; row++)
+      for (let col = -1; col < 11; col++)
+        px(col * 32 + (row % 2 ? 16 : 0), 12 + row * 12, 30, 10, row % 2 ? "#50535b" : "#4d5058");
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#393b40");
+    for (let i = 0; i < 7; i++) px(0, FLOOR_Y + 6 + i * 8, W, 1, "#2f3135");
+    px(0, FLOOR_Y, W, 2, "#26282c");
+
+    // tiny barred window, night sky
+    const wx = 48, wy = 24, vw = 36, vh = 26;
+    px(wx - 3, wy - 3, vw + 6, vh + 6, "#26282c");
+    px(wx, wy, vw, vh, "#141c33");
+    px(wx + 24, wy + 5, 6, 6, "#f2ecc9"); // moon
+    px(wx + 26, wy + 6, 2, 2, "#141c33");
+    for (let i = 0; i < 8; i++) px(wx + 2 + ((i * 9) % (vw - 4)), wy + 3 + ((i * 5) % (vh - 6)), 1, 1, "#cdd8f5");
+    for (let i = 0; i < 3; i++) px(wx + 6 + i * 11, wy, 3, vh, "#26282c"); // window bars
+
+    // swinging bulb
+    const sway = Math.sin(frame / 10) * 3;
+    const lx = 200 + sway;
+    px(200, 0, 1, 16, "#26282c");
+    const lit = frame % 60 < 55;
+    px(lx - 3, 16, 7, 6, lit ? "#fff3c4" : "#6a6455");
+    if (lit) {
+      ctx.fillStyle = "rgba(255,236,170,0.05)";
+      ctx.beginPath();
+      ctx.moveTo(lx, 22); ctx.lineTo(lx - 30, FLOOR_Y); ctx.lineTo(lx + 30, FLOOR_Y); ctx.closePath();
+      ctx.fill();
+    }
+
+    // tally marks: one group per arrest
+    const groups = Math.min(6, 1 + ((WB.CRIME && WB.CRIME.crimeState().timesCaught) || 1));
+    for (let g = 0; g < groups; g++) {
+      const tx = 130 + g * 14, ty = 38;
+      for (let i = 0; i < 4; i++) px(tx + i * 3, ty, 1, 8, "#c8cad0");
+      px(tx - 1, ty + 2, 12, 1, "#c8cad0");
+    }
+
+    // bunk + prisoner
+    const bx = 232, by = FLOOR_Y + 14;
+    px(bx, by - 26, 4, 40, "#5a5d64"); px(bx + 62, by - 26, 4, 40, "#5a5d64"); // posts
+    px(bx + 2, by - 22, 62, 4, "#6a6d74");                                     // top bunk
+    px(bx + 2, by, 62, 4, "#6a6d74");                                          // bottom bunk
+    px(bx + 4, by - 4, 58, 4, "#9a9da6");                                      // thin mattress
+    const bob = Math.floor(frame / 8) % 2;
+    const sx2 = bx + 26;
+    px(sx2 - 5, by - 21 + bob, 10, 5, HAIR);                                   // head, hung low
+    px(sx2 - 4, by - 17 + bob, 8, 6, SKIN);
+    px(sx2 - 7, by - 12 + bob, 14, 10, "#d97f28");                             // prison jumpsuit
+    px(sx2 - 7, by - 12 + bob, 14, 2, "#b8641c");
+    px(sx2 - 5, by - 3, 4, 5, "#d97f28"); px(sx2 + 2, by - 3, 4, 5, "#d97f28"); // legs dangling
+    px(sx2 - 5, by + 2 + (Math.floor(frame / 5) % 2), 4, 2, "#222");           // feet swing
+    px(sx2 + 2, by + 2 + ((Math.floor(frame / 5) + 1) % 2), 4, 2, "#222");
+    const sigh = frame % 90;
+    if (sigh < 14) px(sx2 + 9, by - 16 - sigh / 3, 2, 2, `rgba(255,255,255,${0.5 - sigh / 30})`); // sigh
+
+    // toilet, regrettably
+    px(150, FLOOR_Y + 20, 14, 4, "#c8cad0");
+    px(153, FLOOR_Y + 24, 8, 8, "#aab0b8");
+    px(150, FLOOR_Y + 12, 4, 9, "#c8cad0");
+
+    // cell door: heavy bars on the left wall
+    px(2, 18, 34, FLOOR_Y + 24, "rgba(20,21,24,0.25)");
+    for (let i = 0; i < 5; i++) px(4 + i * 7, 14, 3, FLOOR_Y + 28, "#22242a");
+    px(2, 50, 34, 3, "#22242a"); px(2, 96, 34, 3, "#22242a"); // crossbars
+    px(26, 70, 7, 9, "#3a3d44"); px(28, 73, 3, 3, "#ffd60a"); // lock plate + keyhole
+
+    // a rat. for ambiance.
+    const rt = (frame * 1.1) % 360;
+    const rx2 = rt < 180 ? 60 + rt : 240 - (rt - 180);
+    px(rx2, FLOOR_Y + 38, 8, 4, "#7a7d85");
+    px(rx2 + (rt < 180 ? 7 : -2), FLOOR_Y + 37, 3, 3, "#7a7d85");
+    px(rx2 + (rt < 180 ? -3 : 9), FLOOR_Y + 39, 3, 1, "#5d6068"); // tail
   }
 
   function shade(hex) {
@@ -507,6 +688,14 @@ WB.ROOM = (function () {
   function draw() {
     const s = getState();
     if (!s || !ctx) return;
+
+    // locked up? the whole scene becomes a cell until release
+    if (window.WB && WB.CRIME && WB.CRIME.inPrison()) {
+      drawPrison(s);
+      frame++;
+      return;
+    }
+
     const h = s.housing, p = PAL[h], eq = s.equipment;
     const state = s.focus === "rest" ? "rest" : (s.focus === "grass" ? "grass" : "work");
 
@@ -533,12 +722,19 @@ WB.ROOM = (function () {
     drawServer(eq);
     drawRouter(eq);
     const desk = drawDesk(eq);
-    drawScreens(eq, desk, state);
+    drawScreens(eq, desk, state, s.focus);
     drawChairAndCharacter(eq, desk, state, s.era); // in front: we see their back against the glow
+    if (state === "work") {
+      if (s.focus === "study") drawStudyProps(desk);
+      if (s.focus === "ai") drawAIBuddy(desk);
+    }
     drawCat(h);
 
     // soft vignette floor shadow under desk
     px(desk.dx - 4, FLOOR_Y + 36, desk.dw + 8, 3, "rgba(0,0,0,0.12)");
+
+    // content mode: ring light + paparazzi flashes on top of everything
+    if (state === "work" && s.focus === "content") drawContentStudio(desk);
 
     frame++;
   }

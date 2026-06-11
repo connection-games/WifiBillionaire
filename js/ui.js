@@ -32,13 +32,72 @@ WB.UI = (function () {
     }, delay);
   }
 
+  // ---------- Notification center ----------
+  // Every notification lands in the inbox (🔔). Only IMPORTANT types also pop a
+  // toast; chatty ones (minor events, info) just bump the unread badge.
+  const POPUP_TYPES = new Set(["ach", "era", "viral", "goal", "trait", "level", "good", "bad"]);
+  const NOTIF_CAP = 60;
+  let notifs = [];
+  try { notifs = JSON.parse(localStorage.getItem("wb_notifs") || "[]"); } catch (e) { notifs = []; }
+  function saveNotifs() { try { localStorage.setItem("wb_notifs", JSON.stringify(notifs)); } catch (e) {} }
+  function unreadCount() { return notifs.reduce((n, x) => n + (x.read ? 0 : 1), 0); }
+  function renderNotifBadge() {
+    const b = $("notif-badge");
+    if (!b) return;
+    const n = unreadCount();
+    b.style.display = n ? "" : "none";
+    b.textContent = n > 9 ? "9+" : n;
+  }
+  function fmtAgo(ts) {
+    const s = Math.max(0, (Date.now() - ts) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago";
+    return Math.floor(s / 86400) + "d ago";
+  }
+  function renderNotifPanel() {
+    const list = $("notif-list");
+    if (!list) return;
+    list.innerHTML = notifs.length
+      ? notifs.map((n, i) => `<div class="notif-item ${n.type || "info"} ${n.read ? "" : "unread"}">
+          <div class="n-text">${n.text}<div class="n-time">${fmtAgo(n.ts)}</div></div>
+          <button class="n-del" data-ndel="${i}" title="Delete">✕</button></div>`).join("")
+      : `<div class="notif-empty">📭 Nothing here. Go make some news.</div>`;
+    list.querySelectorAll("[data-ndel]").forEach(b => b.onclick = (e) => {
+      e.stopPropagation();
+      notifs.splice(+b.dataset.ndel, 1);
+      saveNotifs(); renderNotifPanel(); renderNotifBadge();
+    });
+  }
+  function toggleNotifPanel(open) {
+    const p = $("notif-panel");
+    const want = open !== undefined ? open : !p.classList.contains("open");
+    p.classList.toggle("open", want);
+    if (want) {
+      renderNotifPanel();
+      notifs.forEach(n => { n.read = true; });
+      saveNotifs(); renderNotifBadge();
+    }
+  }
+  function pushNotif(text, type) {
+    notifs.unshift({ text, type: type || "info", ts: Date.now(), read: false });
+    if (notifs.length > NOTIF_CAP) notifs.length = NOTIF_CAP;
+    saveNotifs(); renderNotifBadge();
+    if ($("notif-panel") && $("notif-panel").classList.contains("open")) renderNotifPanel();
+  }
+
+  let lastToastText = "", lastToastAt = 0;
   function toast(text, type) {
+    pushNotif(text, type); // everything is collected in the inbox
+    if (!POPUP_TYPES.has(type || "info")) return; // chatty stuff stays in the inbox
+    if (text === lastToastText && Date.now() - lastToastAt < 5000) return; // de-dupe bursts
+    lastToastText = text; lastToastAt = Date.now();
     const box = $("toasts");
     const el = document.createElement("div");
     el.className = "toast " + (type || "info");
     el.textContent = text;
     box.appendChild(el);
-    while (box.children.length > 5) box.removeChild(box.firstChild);
+    while (box.children.length > 4) box.removeChild(box.firstChild);
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 400); }, 6000);
   }
   function notifyAchievement(a) {
@@ -46,6 +105,14 @@ WB.UI = (function () {
   }
 
   // ============================================================ Modals
+  // The scam texting app is a full-screen layer above modals, so while it is
+  // open we treat the UI as "busy": events and perk offers wait instead of
+  // popping underneath it.
+  function scamOpen() {
+    const s = $("scam-app");
+    return !!(s && s.classList.contains("open"));
+  }
+  function uiBusy() { return modalIsOpen || scamOpen(); }
   function openModal(html) {
     modalIsOpen = true;
     $("modal-content").innerHTML = html;
@@ -73,6 +140,7 @@ WB.UI = (function () {
     });
   }
   function offerPerks(perks) {
+    if (scamOpen()) { setTimeout(() => offerPerks(perks), 2500); return; } // wait until the texting app closes
     openModal(`
       <h2>✨ Level Up — Choose a Perk</h2>
       <p class="muted">Pick one. The other two are lost to the multiverse.</p>
@@ -94,6 +162,15 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v5.1 — The Living Room Update", items: [
+      "🏠 Living UI overhaul: new character status panel with live activity, mood and level.",
+      "🚔 Prison takeover: get jailed and the whole room becomes a cell — bars, bunk, tally marks, cell number.",
+      "😴 He actually sleeps in a bed now (and snores). 🎥 Content mode brings a ring light + camera flashes.",
+      "🪙 Crypto mode shows live candle charts; 📚 Study gets a book; 🤖 Build AI spawns a helper bot.",
+      "🔔 NEW: Notification inbox — fewer popups, everything collected under the bell (9+ badge).",
+      "ℹ️ NEW: About Us & Contact Us in Settings.",
+      "🐛 Fixed: buttons glitching on hover; popups appearing underneath the texting app.",
+    ]},
     { v: "v5.0 — Crime & Polish", items: [
       "🦹 NEW: Crime tab — phishing scam texting, plus 7 quick-job crimes.",
       "📱 NEW: AI Scam Sim — chat up fictional victims with personalities & a hidden trust meter.",
@@ -113,6 +190,22 @@ WB.UI = (function () {
     ]},
   ];
   function settingsBody() {
+    if (settingsTab === "about") {
+      return `
+        <div class="about-card">
+          <h3>📖 About Us</h3>
+          <p>This game is an open-source project built with the help of AI. Our goal is simple: to create an incredibly entertaining game that anyone can play, enjoy, and contribute to. The source code is publicly available, meaning any developer, designer, or enthusiast can read it, suggest changes, or build on top of it.</p>
+          <p>We believe great games should be accessible to everyone — not locked behind paywalls or closed systems.</p>
+        </div>
+        <div class="about-card">
+          <h3>💌 Contact Us</h3>
+          <p>Have a tip, suggestion, or idea to make the game better? We'd love to hear from you. Reach out to us at:</p>
+          <div class="contact-row">
+            <a class="contact-pill" href="mailto:cntngames96@gmail.com" target="_blank" rel="noopener">📧 cntngames96@gmail.com</a>
+            <a class="contact-pill" href="https://github.com/connection-games/WifiBillionare/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>
+          </div>
+        </div>`;
+    }
     if (settingsTab === "updates") {
       return `<div class="upd-list">${UPDATES.map(u =>
         `<div class="upd-block"><div class="upd-ver">${u.v}</div>${u.items.map(i => `<div class="upd-item">${i}</div>`).join("")}</div>`).join("")}</div>`;
@@ -145,7 +238,7 @@ WB.UI = (function () {
         <button class="switch ${getSetting(k) ? "on" : ""}" data-toggle="${k}"><span></span></button></div>`).join("")}</div>`;
   }
   function showSettings() {
-    const tabs = { general: "⚙️ General", ai: "🤖 AI", data: "💾 Data", updates: "✨ Updates" };
+    const tabs = { general: "⚙️ General", ai: "🤖 AI", data: "💾 Data", updates: "✨ Updates", about: "ℹ️ About" };
     openModal(`<h2>Settings</h2>
       <div class="set-tabs">${Object.entries(tabs).map(([k, l]) => `<button class="set-tab ${settingsTab === k ? "active" : ""}" data-settab="${k}">${l}</button>`).join("")}</div>
       <div id="set-body">${settingsBody()}</div>
@@ -160,7 +253,7 @@ WB.UI = (function () {
         localStorage.setItem("wb_openai_model", $("ai-model").value.trim() || WB.SECRETS.openaiModel);
         toast("🤖 AI key saved on this device.", "good"); rebind();
       };
-      if ($("ai-clear")) $("ai-clear").onclick = () => { localStorage.removeItem("wb_openai_key"); $("ai-key").value = ""; toast("Key cleared.", "info"); rebind(); };
+      if ($("ai-clear")) $("ai-clear").onclick = () => { localStorage.removeItem("wb_openai_key"); $("ai-key").value = ""; toast("Key cleared.", "good"); rebind(); };
       if ($("set-export")) $("set-export").onclick = () => { $("save-blob").value = WB.GAME.exportSave(); $("save-blob").select(); };
       if ($("set-import")) $("set-import").onclick = () => { if (!WB.GAME.importSave($("save-blob").value)) alert("Invalid save data."); };
       if ($("set-reset")) $("set-reset").onclick = () => { if (confirm("Delete EVERYTHING including prestige? No takebacks.")) WB.GAME.hardReset(); };
@@ -474,9 +567,14 @@ WB.UI = (function () {
     const sorko = getSetting("sorko");
     let feed = [];
     const n = 7;
+    // deterministic feed that rotates every 45s — random picks per render made
+    // the DOM rebuild constantly and killed hover states (glitchy buttons)
+    const seed = Math.floor(Date.now() / 45000);
+    const HANDLES = ["devmike", "sara_codes", "nightowl99", "rampedup", "broke_no_more", "future_ceo", "pixelpete", "grindset_greg"];
     for (let i = 0; i < n; i++) {
-      if (sorko && (i === 0 || WB.chance(0.4))) feed.push({ sorko: true, t: SORKO_FAN[(st.stats.eventsSeen + i) % SORKO_FAN.length] });
-      else feed.push({ sorko: false, t: "@" + WB.pick(["devmike", "sara_codes", "nightowl99", "rampedup", "broke_no_more", "future_ceo", "pixelpete", "grindset_greg"]) + " — " + WB.pick(FAN_COMMENTS) });
+      const r = (seed * 31 + i * 17 + st.stats.eventsSeen) % 97;
+      if (sorko && (i === 0 || r % 5 < 2)) feed.push({ sorko: true, t: SORKO_FAN[(seed + st.stats.eventsSeen + i) % SORKO_FAN.length] });
+      else feed.push({ sorko: false, t: "@" + HANDLES[(r + i) % HANDLES.length] + " — " + FAN_COMMENTS[(r * 7 + i * 3) % FAN_COMMENTS.length] });
     }
     let html = `<div class="section-title">📱 Your Socials</div>
       <div class="card"><div class="card-main"><b>📣 Followers</b> <span class="tag">${WB.fmt(x.followers)}</span>
@@ -527,7 +625,9 @@ WB.UI = (function () {
     return html;
   }
 
+  let tabHovered = false; // periodic refreshes pause while the pointer is in the panel (anti hover-flicker)
   function renderTab(force) {
+    if (!force && tabHovered) return;
     let html;
     if (activeTab === "shop") html = subBar("shop") + (sub.shop === "gear" ? tabStore() : tabAssets());
     else if (activeTab === "profile") html = subBar("profile") + (sub.profile === "skills" ? tabSkills() : sub.profile === "awards" ? tabAchievements() : tabStats());
@@ -572,6 +672,54 @@ WB.UI = (function () {
     $(id + "-fill").style.width = Math.max(0, Math.min(100, pct)) + "%";
     if (txt !== undefined) $(id + "-txt").textContent = txt;
   }
+
+  // ---------- Living status (what is he doing right now?) ----------
+  const STATUS_BY_FOCUS = {
+    code:    ["💻", "Writing Code", "shipping features (and bugs)"],
+    content: ["🎥", "Making Content", "cameras flashing, fame loading"],
+    crypto:  ["🪙", "Trading Crypto", "watching candles like a hawk"],
+    ai:      ["🤖", "Building AI", "teaching the machine to hustle"],
+    gamedev: ["🕹️", "Making Games", "one more playtest, promise"],
+    study:   ["📚", "Studying", "brain gains in progress"],
+    rest:    ["😴", "Sleeping", "snoring at championship level"],
+    grass:   ["🌱", "Touching Grass", "outside??? character growth"],
+  };
+  function moodFace(r) {
+    const m = (r.happiness + r.motivation) / 2 - r.stress * 0.35;
+    if (m >= 70) return "😄 Great";
+    if (m >= 45) return "🙂 Fine";
+    if (m >= 25) return "😕 Meh";
+    return "😩 Rough";
+  }
+  function cellNumber() {
+    const c = WB.CRIME ? WB.CRIME.crimeState() : { timesCaught: 0 };
+    return (3 + (c.timesCaught % 6)) + "" + "ABC"[c.timesCaught % 3];
+  }
+  let wasJailed = null;
+  function renderStatus() {
+    const jailed = WB.CRIME && WB.CRIME.inPrison();
+    const panel = $("char-panel"), room = $("room-wrap");
+    if (jailed !== wasJailed) { // toggle classes only on change for clean CSS transitions
+      wasJailed = jailed;
+      panel.classList.toggle("jailed", jailed);
+      room.classList.toggle("jailed", jailed);
+      $("cell-badge").style.display = jailed ? "" : "none";
+      if (jailed) $("cell-badge").textContent = "🔒 CELL " + cellNumber();
+    }
+    if (jailed) {
+      const c = WB.CRIME.crimeState();
+      $("status-icon").textContent = "🚔";
+      $("status-label").textContent = "In Prison";
+      $("status-sub").textContent = WB.fmtTime(WB.CRIME.prisonLeft() / 1000) + " left · " + (c.prisonReason || "crimes were committed");
+      $("housing-name").textContent = "🔒 County Jail · Cell " + cellNumber();
+      return;
+    }
+    const [icon, label, sub2] = STATUS_BY_FOCUS[st.focus] || ["💼", "Hustling", "doing entrepreneur things"];
+    $("status-icon").textContent = icon;
+    $("status-label").textContent = label;
+    $("status-sub").textContent = st.project ? `on "${st.project.name}" · ${sub2}` : sub2;
+    $("housing-name").textContent = D.HOUSING[st.housing].name;
+  }
   function renderHud() {
     const G = WB.GAME, r = st.res;
     const money = st.money;
@@ -584,7 +732,6 @@ WB.UI = (function () {
     $("ips").textContent = WB.fmt(G.incomePerSec(), true) + "/sec";
     const e = D.ERAS[st.era];
     $("era-badge").textContent = `${e.year} · ${e.name}`;
-    $("housing-name").textContent = D.HOUSING[st.housing].name;
     const boost = Date.now() < st.boost.until;
     $("boost-badge").style.display = boost ? "" : "none";
     if (boost) $("boost-badge").textContent = `🔥 x${st.boost.mult} for ${Math.ceil((st.boost.until - Date.now()) / 1000)}s`;
@@ -596,6 +743,11 @@ WB.UI = (function () {
     $("rep-val").textContent = Math.floor(r.reputation);
     $("int-val").textContent = Math.floor(r.intelligence);
     $("followers-val").textContent = WB.fmt(st.stats.followers);
+
+    // living character panel: status, mood, level, prison state
+    renderStatus();
+    $("mood-badge").textContent = moodFace(r);
+    $("level-badge").textContent = "⭐ Lv " + G.charLevel();
 
     // Goal
     const goal = D.GOALS[st.goalIndex];
@@ -637,26 +789,43 @@ WB.UI = (function () {
   }
 
   // ============================================================ Actions bar
+  // Rebuild the DOM only when an action's STATE changes; progress % and
+  // countdown text are patched in place so hover styles never get destroyed
+  // mid-animation (the old full innerHTML swap made buttons flicker on hover).
+  let lastActionsSig = "";
+  function actionInfo({ id, def, st: a }) {
+    let sub = "", pct = 0;
+    if (a.state === "ready") sub = "Ready";
+    else if (a.state === "running") { sub = "Working… " + a.label; pct = a.pct; }
+    else if (a.state === "done") { sub = "📬 Check results!"; pct = 100; }
+    else if (a.state === "cooldown") sub = "Recharging " + a.label;
+    return { id, def, state: a.state, sub, pct };
+  }
   function renderActions() {
     if (!WB.ACTIONS) return;
-    const items = WB.ACTIONS.list();
-    const html = items.map(({ id, def, st: a }) => {
-      let sub = "", pct = 0, cls = a.state;
-      if (a.state === "ready") sub = "Ready";
-      else if (a.state === "running") { sub = "Working… " + a.label; pct = a.pct; }
-      else if (a.state === "done") { sub = "📬 Check results!"; pct = 100; }
-      else if (a.state === "cooldown") sub = "Recharging " + a.label;
-      return `<button class="action-card ${cls}" data-action="${id}" title="${def.desc}">
-        <span class="action-icon">${def.icon}</span>
-        <span class="action-name">${def.name}</span>
-        <span class="action-sub">${sub}</span>
-        <span class="action-track"><span class="action-fill" style="width:${pct}%"></span></span>
-      </button>`;
-    }).join("");
-    if (html !== lastActionsHtml) {
-      lastActionsHtml = html;
-      $("actions-bar").innerHTML = html;
+    const items = WB.ACTIONS.list().map(actionInfo);
+    const sig = items.map(i => i.id + ":" + i.state).join("|");
+    if (sig !== lastActionsSig) {
+      lastActionsSig = sig;
+      $("actions-bar").innerHTML = items.map(i =>
+        `<button class="action-card ${i.state}" data-action="${i.id}" title="${i.def.desc}">
+          <span class="action-icon">${i.def.icon}</span>
+          <span class="action-name">${i.def.name}</span>
+          <span class="action-sub">${i.sub}</span>
+          <span class="action-track"><span class="action-fill" style="width:${i.pct}%"></span></span>
+        </button>`).join("");
+      return;
     }
+    // same structure — patch text/progress without touching the DOM tree
+    const cards = $("actions-bar").children;
+    items.forEach((i, idx) => {
+      const card = cards[idx];
+      if (!card) return;
+      const sub = card.querySelector(".action-sub");
+      const fill = card.querySelector(".action-fill");
+      if (sub && sub.textContent !== i.sub) sub.textContent = i.sub;
+      if (fill) fill.style.width = i.pct + "%";
+    });
   }
 
   function showActionResult(result) {
@@ -773,6 +942,17 @@ WB.UI = (function () {
     });
 
     $("settings-btn").addEventListener("click", showSettings);
+
+    // Notification center
+    $("notif-btn").addEventListener("click", e => { e.stopPropagation(); toggleNotifPanel(); });
+    $("notif-clear").addEventListener("click", () => { notifs = []; saveNotifs(); renderNotifPanel(); renderNotifBadge(); });
+    $("notif-panel").addEventListener("click", e => e.stopPropagation());
+    document.addEventListener("click", () => toggleNotifPanel(false));
+    renderNotifBadge();
+
+    // pause periodic side-panel refreshes while hovering (prevents button flicker)
+    $("tab-content").addEventListener("pointerenter", () => { tabHovered = true; });
+    $("tab-content").addEventListener("pointerleave", () => { tabHovered = false; });
     const gotoTab = name => { activeTab = name; document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x.dataset.tab === name)); renderTab(true); };
     $("prestige-pill").addEventListener("click", () => gotoTab("prestige"));
 
@@ -786,7 +966,7 @@ WB.UI = (function () {
       if (b) onActionClick(b.dataset.action);
     });
 
-    const hooks = { toast, bubble, showEventModal, offerPerks, notifyAchievement, confetti, roomDirty: () => {}, modalOpen: () => modalIsOpen };
+    const hooks = { toast, bubble, showEventModal, offerPerks, notifyAchievement, confetti, roomDirty: () => {}, modalOpen: uiBusy };
     initTheme();
     const res = WB.GAME.init(hooks);
     st = res.state;
