@@ -175,6 +175,13 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.0 — The Empire Update", items: [
+      "🪐 NEW SECRET: hit $1T net worth and a hidden tab opens — found a space company, buy the Moon, build your own city-state, simulate a universe.",
+      "🎬 NEW: in-room cutscenes — get arrested and watch the cops drive you downtown; buy the Moon and watch the full rocket trip.",
+      "⬇️ NEW: the game now updates ITSELF on launch — Loading… → Looking for updates… → auto-install with a progress bar. No buttons.",
+      "📰 After an update, the changelog greets you on first open (like this one just did).",
+      "🎮 The mode menu is gone — Casual/Speedrun now lives in Settings → General.",
+    ]},
     { v: "v5.4 — The Living Character Update", items: [
       "🚽 NEW: Hygiene meter — your guy gets gross and walks himself to the toilet to freshen up.",
       "🚶 The character now WALKS around the room — to the desk, the bed, the bathroom.",
@@ -268,6 +275,14 @@ WB.UI = (function () {
         <option value="sv" ${curLang === "sv" ? "selected" : ""}>Svenska 🇸🇪 (SEK)</option>
       </select>
       <div class="muted" style="text-align:left;margin:6px 2px 14px">${WB.t("Choose your language. Swedish switches money to SEK.")}</div>`;
+    let curMode = "casual";
+    try { curMode = localStorage.getItem("wb_mode") === "speedrun" ? "speedrun" : "casual"; } catch (e) {}
+    const modeSec = `<label class="set-label">${WB.t("🎮 Game Mode")}</label>
+      <select class="set-input" id="mode-sel">
+        <option value="casual" ${curMode === "casual" ? "selected" : ""}>🌱 ${WB.t("Casual — relaxed pacing")}</option>
+        <option value="speedrun" ${curMode === "speedrun" ? "selected" : ""}>⚡ ${WB.t("Speedrun — everything ×3 faster")}</option>
+      </select>
+      <div class="muted" style="text-align:left;margin:6px 2px 14px">${WB.t("Applies instantly — switch any time.")}</div>`;
     const toggles = [
       ["sorko", "🦈 Sorko Mode", "Your #1 superfan haunts the Socials feed. Essential."],
       ["confetti", "🎉 Confetti", "Celebrate milestones with falling confetti."],
@@ -275,10 +290,22 @@ WB.UI = (function () {
       ["showHeat", "🌡️ Show Heat Meter", "Display the crime heat indicator in the HUD."],
       ["autosaveToast", "💾 Autosave Notices", "Pop a tiny toast every time the game saves."],
     ];
-    return langSec + `<div class="toggle-list">${toggles.map(([k, label, desc]) =>
+    return langSec + modeSec + `<div class="toggle-list">${toggles.map(([k, label, desc]) =>
       `<div class="toggle-row"><div><b>${WB.t(label)}</b><div class="muted">${WB.t(desc)}</div></div>
         <button class="switch ${getSetting(k) ? "on" : ""}" data-toggle="${k}"><span></span></button></div>`).join("")}</div>`;
   }
+  // first launch after an auto-update: greet the player with what changed
+  function showWhatsNew() {
+    const u = UPDATES[0];
+    openModal(`
+      <div class="ev-icon">🎁</div>
+      <h2>${WB.t("What's New")}</h2>
+      <p class="muted">${WB.t("The game updated itself while you weren't looking. Here's the loot:")}</p>
+      <div class="upd-list whatsnew"><div class="upd-block"><div class="upd-ver">${u.v}</div>${u.items.map(i => `<div class="upd-item">${i}</div>`).join("")}</div></div>
+      <button class="btn primary wide" id="wn-done">${WB.t("Let's go!")} 🚀</button>`);
+    $("wn-done").onclick = closeModal;
+  }
+
   function showSettings() {
     const tabs = { general: "⚙️ General", ai: "🤖 AI", data: "💾 Data", updates: "✨ Updates", about: "ℹ️ About" };
     openModal(`<h2>Settings</h2>
@@ -288,6 +315,10 @@ WB.UI = (function () {
     const rebind = () => { $("set-body").innerHTML = settingsBody(); bindBody(); };
     function bindBody() {
       if ($("lang-sel")) $("lang-sel").onchange = () => { WB.I18N.setLang($("lang-sel").value); location.reload(); };
+      if ($("mode-sel")) $("mode-sel").onchange = () => {
+        try { localStorage.setItem("wb_mode", $("mode-sel").value); } catch (e) {}
+        toast($("mode-sel").value === "speedrun" ? "⚡ Speedrun mode ON — everything runs ~3× faster." : "🌱 Casual mode — back to a human pace.", "good");
+      };
       $("set-body").querySelectorAll("[data-toggle]").forEach(b => b.onclick = () => {
         const k = b.dataset.toggle; setSetting(k, !getSetting(k)); b.classList.toggle("on"); renderTab(true);
       });
@@ -698,13 +729,54 @@ WB.UI = (function () {
     return html;
   }
 
+  // ---------- Empire tab (secret endgame) ----------
+  function tabEmpire() {
+    const E = WB.EMPIRE;
+    const rk = E.rank();
+    let html = `
+      <div class="empire-hero">
+        <div class="empire-hero-top"><b>🪐 The Empire</b><span class="empire-rank">👑 ${rk.title}</span></div>
+        <div class="empire-sub">${WB.fmt(E.income(), true)}/s base from ${rk.owned}/${rk.total} acquisitions — multiplied by everything you already own.</div>
+      </div>`;
+    E.VENTURES.forEach(v => {
+      const stage = E.stageOf(v.id);
+      const next = E.nextStage(v.id);
+      html += `<div class="card col empire-venture">
+        <div class="career-head"><b>${v.icon} ${v.name}</b><span class="tag">${stage + 1}/${v.stages.length}</span></div>
+        <div class="muted" style="margin-top:-2px">${v.tagline}</div>
+        <div class="career-path muted">${v.stages.map((x2, i) => i <= stage ? `<b class="done">${x2.name}</b>` : x2.name).join(" → ")}</div>
+        ${stage >= 0 ? `<div class="empire-flavor">“${v.stages[stage].flavor}”</div>` : ""}
+        ${next
+          ? `<button class="btn buy wide ${st.money >= next.cost ? "" : "locked"}" data-act="venture" data-key="${v.id}">
+              ${next.cutscene ? "🎬 " : ""}${next.name}<span class="cost">${WB.fmt(next.cost, true)}</span></button>
+            <div class="req muted">+${WB.fmt(next.income, true)}/s base income</div>`
+          : `<span class="tag gold">EMPIRE COMPLETE</span>`}
+      </div>`;
+    });
+    return html;
+  }
+
+  // tab bar is rebuilt when the secret unlock state changes
+  let lastTabsSig = "";
+  function renderTabBar() {
+    const E = WB.EMPIRE;
+    const mode = !E ? "none" : E.unlocked() ? "open" : E.teased() ? "tease" : "none";
+    if (mode === lastTabsSig) return;
+    lastTabsSig = mode;
+    let html = Object.entries(TABS).map(([k, label]) =>
+      `<button class="tab-btn ${k === activeTab ? "active" : ""}" data-tab="${k}">${WB.t(label)}</button>`).join("");
+    if (mode === "open") html += `<button class="tab-btn empire ${activeTab === "empire" ? "active" : ""}" data-tab="empire">🪐 ${WB.t("Empire")}</button>`;
+    else if (mode === "tease") html += `<button class="tab-btn secret" data-tab="empire-locked" title="Something colossal unlocks at ${WB.fmt(E.UNLOCK_NW, true)} net worth">🔒 ???</button>`;
+    $("tabs").innerHTML = html;
+  }
+
   let tabHovered = false; // periodic refreshes pause while the pointer is in the panel (anti hover-flicker)
   function renderTab(force) {
     if (!force && tabHovered) return;
     let html;
     if (activeTab === "shop") html = subBar("shop") + (sub.shop === "gear" ? tabStore() : tabAssets());
     else if (activeTab === "profile") html = subBar("profile") + (sub.profile === "skills" ? tabSkills() : sub.profile === "awards" ? tabAchievements() : tabStats());
-    else html = { careers: tabCareers, crime: tabCrime, socials: tabSocials, prestige: tabPrestige }[activeTab]();
+    else html = ({ careers: tabCareers, crime: tabCrime, socials: tabSocials, prestige: tabPrestige, empire: tabEmpire }[activeTab] || tabStore)();
     if (html !== lastTabHtml || force) {
       lastTabHtml = html;
       $("tab-content").innerHTML = html;
@@ -720,6 +792,16 @@ WB.UI = (function () {
     const G = WB.GAME;
     const act = btn.dataset.act, key = btn.dataset.key;
     if (act === "crime") { const r = WB.CRIME.commit(key); if (r && r.refused) toast("🚫 " + r.refused, "bad"); else if (r) openResult({ ...r, money: r.money }); }
+    else if (act === "venture") {
+      const r = WB.EMPIRE.buyNext(key);
+      if (r.refused) toast("🚫 " + r.refused, "bad");
+      else {
+        confetti();
+        toast(`${r.venture.icon} EMPIRE: ${r.stage.name} — +${WB.fmt(r.stage.income, true)}/s base!`, "era");
+        bubble(r.stage.flavor);
+        if (r.cutscene && WB.ROOM.play) WB.ROOM.play(r.cutscene); // roll the movie 🎬
+      }
+    }
     else if (act === "bail") WB.CRIME.postBail();
     else if (act === "openscam") WB.SCAM.open();
     else if (act === "dopost") { const r = WB.ACTIONS.start("social"); if (r && r.refused) toast("😮‍💨 " + r.refused, "bad"); }
@@ -854,6 +936,9 @@ WB.UI = (function () {
 
     $("hustle-val").textContent = "+" + WB.fmt(G.clickValue(), true);
     $("prestige-pill").style.display = G.legacyGain() > 0 ? "" : "none";
+
+    // Secret tab may have just unlocked
+    renderTabBar();
 
     // Heat pill + prison banner
     const heatPill = $("heat-pill");
@@ -1027,12 +1112,14 @@ WB.UI = (function () {
       if (b && !b.classList.contains("locked")) { WB.GAME.setFocus(b.dataset.focus); renderHud(); }
     });
 
-    // Tabs
-    $("tabs").innerHTML = Object.entries(TABS).map(([k, label]) =>
-      `<button class="tab-btn ${k === activeTab ? "active" : ""}" data-tab="${k}">${WB.t(label)}</button>`).join("");
+    // Tabs (rebuilt dynamically — the Empire tab appears when the secret unlocks)
     $("tabs").addEventListener("click", e => {
       const b = e.target.closest("[data-tab]");
       if (!b) return;
+      if (b.dataset.tab === "empire-locked") {
+        toast(`🤫 Something colossal unlocks at ${WB.fmt(WB.EMPIRE.UNLOCK_NW, true)} net worth. Keep stacking.`, "good");
+        return;
+      }
       activeTab = b.dataset.tab;
       document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x.dataset.tab === activeTab));
       renderTab(true);
@@ -1085,6 +1172,7 @@ WB.UI = (function () {
     const res = WB.GAME.init(hooks);
     st = res.state;
     WB.ROOM.init($("room-canvas"), () => st);
+    renderTabBar();
     renderHud();
     renderTab(true);
     // Re-show a perk offer that was pending when the game was closed
@@ -1107,5 +1195,5 @@ WB.UI = (function () {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { toast, bubble, confetti, openResult, showPrison, hidePrison, getSetting, showSettings };
+  return { toast, bubble, confetti, openResult, showPrison, hidePrison, getSetting, showSettings, showWhatsNew };
 })();

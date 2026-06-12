@@ -17,8 +17,7 @@ contextBridge.exposeInMainWorld('wbDesktop', {
   // --- AI proxy (renderer -> main -> OpenAI, no CORS) ---
   aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
 
-  // --- auto-update ---
+  // --- auto-update (fully automatic; renderer just listens for status) ---
   onUpdateStatus: (cb) => ipcRenderer.on('updater:status', (_e, data) => cb(data)),
-  restartToUpdate: () => ipcRenderer.send('updater:restart'),
   checkForUpdates: () => ipcRenderer.send('updater:check'),
 });

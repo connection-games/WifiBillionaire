@@ -5,7 +5,7 @@
      and errors to the renderer for a friendly in-app banner. */
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -79,12 +79,13 @@ function createWindow() {
 }
 
 // ---------- Auto-update ----------
-// On launch the app checks GitHub Releases and asks "New Update! Install now?"
-// (native Yes/No dialog). Windows installs via electron-updater (works unsigned).
-// macOS cannot use electron-updater without an Apple Developer ID signature, so
-// it self-updates: download release zip -> verify sha512 -> swap .app -> relaunch.
+// Fully automatic: on launch the app checks GitHub Releases and, if a new
+// version exists, downloads + installs it by itself while the boot screen
+// shows a progress bar. No dialogs. The app relaunches itself when done.
+// Windows installs via electron-updater (works unsigned). macOS cannot use
+// electron-updater without an Apple Developer ID signature, so it self-updates:
+// download release zip -> verify sha512 -> swap .app -> relaunch.
 const UPDATE_BASE = 'https://github.com/connection-games/WifiBillionare/releases/latest/download/';
-const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
 function sendStatus(win, payload) {
   if (win && !win.isDestroyed()) win.webContents.send('updater:status', payload);
@@ -92,7 +93,6 @@ function sendStatus(win, payload) {
 
 let updaterStarted = false;
 let updating = false;
-let declinedVersion = null;
 
 function initUpdater(win) {
   if (updaterStarted) return;
@@ -102,39 +102,19 @@ function initUpdater(win) {
   else initWinUpdater(win);
 }
 
-async function askInstall(win, version) {
-  const r = await dialog.showMessageBox(win, {
-    type: 'info',
-    title: 'New Update!',
-    message: 'New Update! 🎉',
-    detail: `Version ${version} is ready (you have ${app.getVersion()}).\nWish to install now? The game restarts by itself — your save is kept.`,
-    buttons: ['Yes', 'No'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (r.response !== 0) { declinedVersion = version; return false; }
-  return true;
-}
-
 // --- Windows: electron-updater (NSIS auto-updates without code signing) ---
 function initWinUpdater(win) {
   let autoUpdater;
   try { autoUpdater = require('electron-updater').autoUpdater; }
   catch (e) { sendStatus(win, { state: 'error', message: 'updater unavailable' }); return; }
 
-  autoUpdater.autoDownload = false; // ask first
+  autoUpdater.autoDownload = true; // fully automatic
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => sendStatus(win, { state: 'checking' }));
-  autoUpdater.on('update-available', async (i) => {
-    const version = (i && i.version) || '?';
-    sendStatus(win, { state: 'available', version });
-    if (updating || version === declinedVersion) return;
-    if (await askInstall(win, version)) {
-      updating = true;
-      try { autoUpdater.downloadUpdate(); }
-      catch (e) { updating = false; sendStatus(win, { state: 'error', message: String(e) }); }
-    }
+  autoUpdater.on('update-available', (i) => {
+    updating = true;
+    sendStatus(win, { state: 'available', version: (i && i.version) || '?' });
   });
   autoUpdater.on('update-not-available', () => sendStatus(win, { state: 'none' }));
   autoUpdater.on('download-progress', (p) => sendStatus(win, {
@@ -142,20 +122,18 @@ function initWinUpdater(win) {
   }));
   autoUpdater.on('update-downloaded', (i) => {
     sendStatus(win, { state: 'downloaded', version: i && i.version });
-    setImmediate(() => { try { autoUpdater.quitAndInstall(false, true); } catch (e) {} });
+    // brief beat so the renderer can paint "Installing…" before we restart
+    setTimeout(() => { try { autoUpdater.quitAndInstall(false, true); } catch (e) {} }, 700);
   });
   autoUpdater.on('error', (err) => {
     updating = false;
     sendStatus(win, { state: 'error', message: String((err && err.message) || err) });
   });
 
-  ipcMain.removeAllListeners('updater:restart');
-  ipcMain.on('updater:restart', () => { try { autoUpdater.quitAndInstall(); } catch (e) {} });
   ipcMain.removeAllListeners('updater:check');
   ipcMain.on('updater:check', () => { try { autoUpdater.checkForUpdates(); } catch (e) {} });
 
   try { autoUpdater.checkForUpdates(); } catch (e) {}
-  setInterval(() => { try { autoUpdater.checkForUpdates(); } catch (e) {} }, CHECK_EVERY);
 }
 
 // --- macOS: self-updater (no Apple signature required) ---
@@ -170,7 +148,7 @@ function cmpVersions(a, b) {
 }
 
 function initMacUpdater(win) {
-  const check = async (explicit) => {
+  const check = async () => {
     if (updating) return;
     try {
       sendStatus(win, { state: 'checking' });
@@ -183,11 +161,9 @@ function initMacUpdater(win) {
         return;
       }
       sendStatus(win, { state: 'available', version });
-      if (!explicit && version === declinedVersion) return;
       const sha512 = (yml.match(/url:\s*WiFi-Billionaire\.zip[\s\S]*?sha512:\s*(\S+)/) || [])[1] || null;
-      if (!(await askInstall(win, version))) return;
       updating = true;
-      await applyMacUpdate(win, version, sha512);
+      await applyMacUpdate(win, version, sha512); // downloads, swaps, relaunches by itself
     } catch (err) {
       updating = false;
       sendStatus(win, { state: 'error', message: String((err && err.message) || err) });
@@ -195,11 +171,9 @@ function initMacUpdater(win) {
   };
 
   ipcMain.removeAllListeners('updater:check');
-  ipcMain.on('updater:check', () => check(true));
-  ipcMain.removeAllListeners('updater:restart');
+  ipcMain.on('updater:check', check);
 
-  check(false);
-  setInterval(() => check(false), CHECK_EVERY);
+  check();
 }
 
 async function applyMacUpdate(win, version, sha512) {

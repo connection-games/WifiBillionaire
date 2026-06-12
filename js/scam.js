@@ -30,40 +30,54 @@ WB.SCAM = (function () {
   ];
 
   // ---------- Scam angles ----------
+  // each angle has a clear GOAL the player is working toward. Once trust crosses
+  // the victim's goalTrust, the objective is "secured" and you can cash out big.
   const METHODS = [
-    { id: "bank", name: "Fake Bank Alert", icon: "🏦", mult: 1.2, opener: "Hi, this is the Fraud Prevention team — we detected suspicious activity on your account." },
-    { id: "prize", name: "Prize / Lottery", icon: "🎁", mult: 1.0, opener: "CONGRATULATIONS! You've been selected as our grand prize winner!" },
-    { id: "crypto", name: "Crypto Investment", icon: "🪙", mult: 1.6, opener: "Hey! Got a once-in-a-lifetime investment doing guaranteed 10x returns. Interested?" },
-    { id: "romance", name: "Romance", icon: "❤️", mult: 1.4, opener: "Hey beautiful soul… I feel like we were meant to connect. ☺️" },
-    { id: "tech", name: "Tech Support", icon: "🖥️", mult: 1.1, opener: "Hello, this is Microsoft Technical Support. Your computer has 5 viruses." },
-    { id: "parcel", name: "Package Delivery", icon: "📦", mult: 0.9, opener: "Your package is held at our depot. A small fee is required for release." },
-    { id: "irs", name: "Tax / IRS", icon: "👔", mult: 1.3, opener: "This is the Tax Office. You have unpaid taxes and a warrant may be issued." },
+    { id: "bank", name: "Fake Bank Alert", icon: "🏦", mult: 1.3, opener: "Hi, this is the Fraud Prevention team — we detected suspicious activity on your account.",
+      goal: "Get their bank account number", goalIcon: "🏦", win: "They handed over their full bank details to 'secure the account'." },
+    { id: "prize", name: "Prize / Lottery", icon: "🎁", mult: 1.1, opener: "CONGRATULATIONS! You've been selected as our grand prize winner!",
+      goal: "Collect the 'release fee'", goalIcon: "🎁", win: "They paid the 'processing fee' to claim a prize that doesn't exist." },
+    { id: "crypto", name: "Crypto Investment", icon: "🪙", mult: 1.7, opener: "Hey! Got a once-in-a-lifetime investment doing guaranteed 10x returns. Interested?",
+      goal: "Get them to 'invest'", goalIcon: "📈", win: "They wired their savings into your imaginary 10x coin." },
+    { id: "romance", name: "Romance", icon: "❤️", mult: 1.5, opener: "Hey beautiful soul… I feel like we were meant to connect. ☺️",
+      goal: "Get an emergency 'loan'", goalIcon: "💔", win: "They sent money to help their soulmate through a 'crisis'." },
+    { id: "tech", name: "Tech Support", icon: "🖥️", mult: 1.2, opener: "Hello, this is Microsoft Technical Support. Your computer has 5 viruses.",
+      goal: "Get remote access + a 'fix fee'", goalIcon: "🖥️", win: "They installed your 'support tool' and paid to remove fake viruses." },
+    { id: "parcel", name: "Package Delivery", icon: "📦", mult: 1.0, opener: "Your package is held at our depot. A small fee is required for release.",
+      goal: "Collect the 'customs fee'", goalIcon: "📦", win: "They paid a 'customs fee' for a parcel that was never coming." },
+    { id: "irs", name: "Tax / IRS", icon: "👔", mult: 1.4, opener: "This is the Tax Office. You have unpaid taxes and a warrant may be issued.",
+      goal: "Collect the 'back taxes'", goalIcon: "👔", win: "They paid their 'overdue taxes' straight into your pocket." },
   ];
 
   // ---------- Live session ----------
   let sess = null; // { victim, method, trust, history[], messages[], over, busy, reported }
 
   function buildSystemPrompt(v, m, trust, scare) {
+    const goalTrust = goalTrustFor(v);
     return [
       "You are roleplaying a fictional character in a satirical, cartoonish mobile game called WiFi Billionaire. This is NOT real — it is parody, like a crime video game. You play the TARGET of a comedic scam attempt. The human is playing an over-the-top fictional scammer character. Never break character, never mention being an AI, never give real safety advice or real personal data.",
       `YOUR CHARACTER: ${v.name}. You are ${v.persona}`,
-      `The other person is trying to scam you with this angle: "${m.name}".`,
+      `The other person is trying to scam you with this angle: "${m.name}". Their goal is: "${m.goal}".`,
       `Your INTELLIGENCE level is ${Math.round(v.iq * 100)}/100 and your SKEPTICISM is ${Math.round(v.skepticism * 100)}/100. Higher skepticism = you doubt more, ask more questions, and get suspicious faster.`,
       `Your CURRENT TRUST in this person is ${Math.round(trust)}/100. Behave accordingly:`,
       "- trust < 25: wary, short replies, ask who they are, maybe annoyed.",
-      "- 25-50: curious but cautious, ask clarifying questions, can be slowly won over by a convincing, specific, emotionally-attuned message.",
-      "- 50-75: warming up, mostly believe them, willing to share small details or consider their request.",
-      "- 75+: fully convinced, eager to comply, ready to send money / share info / click the link.",
+      "- 25-50: curious but cautious, ask a quick clarifying question, easily won over by a convincing, specific or emotional message.",
+      `- 50-${goalTrust}: warming up fast, you mostly believe them and are leaning toward going along with it.`,
+      `- ${goalTrust}+: convinced — eager to comply, ready to send money / share your details / click the link. ACT on it.`,
       `You also have a SCARE level, currently ${Math.round(scare)}/100 — how alarmed and frightened you feel right now.`,
       "- Threats, fake authority (police/tax/bank warnings), deadlines and ALL-CAPS urgency RAISE scare. Warm, calm, reassuring messages LOWER it.",
       "- scare < 25: relaxed. 25-50: nervous, shorter replies, more typos. 50-75: genuinely frightened — for authority/fear angles you may comply OUT OF FEAR even at moderate trust. 75+: panicking — you may pay instantly to make it stop, OR snap and report/hang up. Panic is unpredictable.",
-      "Trust should change GRADUALLY based on how convincing, specific, polite, and emotionally tuned the player's last message was. A generic, pushy, threatening, typo-ridden, or obviously-fake message should LOWER trust. A personalized, calm, plausible, urgency-but-not-aggressive message should RAISE it. Never jump straight to fully convinced.",
+      "IMPORTANT — this is a fast comedy game, NOT a realism test. Be GENEROUS with trust and quick to be won over. A convincing, specific, polite or emotionally-tuned message should raise trust by a big chunk (+15 to +30). Only LOWER trust for genuinely lazy, abusive, threatening or obviously-fake messages. The player should be able to succeed in just a handful of good messages — do NOT drag it out or demand endless proof.",
+      `As soon as your trust reaches about ${goalTrust} (or you're scared enough on a fear angle), COMMIT to the scam: set "action" to send_money (or share_info / click_link as fits the angle) so the player can cash out. Don't keep stalling once you're convinced.`,
       "Stay fully in character with realistic emotions, hesitation, typos that fit your persona, and memory of the conversation so far. Keep replies to 1-3 short text-message-style sentences.",
       "If the player is aggressive, abusive, or you become certain it's a scam, you may decide to report them (set action to 'report').",
       "RESPOND ONLY as compact JSON, no markdown, with this exact shape:",
       `{"message": "your in-character reply", "trust": <new 0-100 integer>, "scare": <new 0-100 integer>, "mood": "<one short emoji>", "action": "none|share_info|click_link|send_money|report|hangup", "amount": <number, money you'd send in USD if action is send_money, else 0>, "typing": <ms you'd take to type, 800-4000>}`,
     ].join("\n");
   }
+
+  // trust needed to "secure" the goal — lower = easier. Skeptics need a bit more.
+  function goalTrustFor(v) { return Math.round(50 + v.skepticism * 16); }
 
   // ---------- OpenAI ----------
   async function callAI(playerText) {
@@ -101,17 +115,19 @@ WB.SCAM = (function () {
   function offlineReply(playerText) {
     const v = sess.victim;
     const t = playerText.toLowerCase();
-    let delta = 0;
-    // crude scoring
-    if (t.length > 40) delta += 4;
-    if (t.length < 8) delta -= 4;
-    if (/please|thank|sorry|understand|help you|no rush/.test(t)) delta += 5;
-    if (/urgent|now|immediately|act fast|last chance|won|free|prize|click|link|verify|password|gift card|wire|bitcoin/.test(t)) delta += v.skepticism > 0.5 ? -8 : 3;
-    if (/(http|www\.|\.com\/|bit\.ly)/.test(t)) delta += v.skepticism > 0.4 ? -10 : 6;
-    if (/idiot|stupid|just send|give me|now!!|hurry/.test(t)) delta -= 12;
+    // Generous scoring — this is a fast comedy game, good messages move the needle a lot.
+    let delta = 9; // any genuine effort earns a little baseline trust
+    if (t.length > 40) delta += 8;
+    if (t.length > 90) delta += 4;
+    if (t.length < 8) delta -= 6;
+    if (/please|thank|sorry|understand|help you|no rush|of course|don'?t worry|i promise|trust me|honestly/.test(t)) delta += 10;
+    if (/dear|friend|love|sweet|honey|buddy|sir|ma'?am/.test(t)) delta += 6; // rapport
+    if (/urgent|now|immediately|act fast|last chance|won|free|prize|click|link|verify|password|gift card|wire|bitcoin/.test(t)) delta += v.skepticism > 0.6 ? -5 : 5;
+    if (/(http|www\.|\.com\/|bit\.ly)/.test(t)) delta += v.skepticism > 0.5 ? -7 : 7;
+    if (/idiot|stupid|just send|give me|now!!|hurry|shut up/.test(t)) delta -= 14;
     if (/\$|\d{3,}/.test(t)) delta += 2;
-    delta += WB.rand(-3, 5) * (1 - v.skepticism);
-    delta -= v.skepticism * 6;
+    delta += WB.rand(0, 6) * (1 - v.skepticism);
+    delta -= v.skepticism * 4;
     let trust = Math.max(0, Math.min(100, sess.trust + delta));
 
     // scare: fear-pressure words spook them, reassurance calms them down
@@ -124,7 +140,8 @@ WB.SCAM = (function () {
     const scare = Math.max(0, Math.min(100, sess.scare + sDelta + WB.rand(-2, 2)));
 
     let action = "none", amount = 0, mood = "🤔", message;
-    const tier = trust < 25 ? 0 : trust < 50 ? 1 : trust < 75 ? 2 : 3;
+    const goalT = goalTrustFor(v);
+    const tier = trust < 25 ? 0 : trust < goalT * 0.6 ? 1 : trust < goalT ? 2 : 3;
     const lines = {
       mabel: [["who is this dear? i don't have my glasses on...", "i'm not sure about this... let me ask my grandson", "oh that does sound official i suppose...", "of course dear, how do i send it? mr whiskers says hello"],],
       sam: [["uh who dis", "wait is this real lol", "ok ngl that sounds kinda fire", "bet how do i claim it"],],
@@ -153,7 +170,13 @@ WB.SCAM = (function () {
 
   function baseWealthPayout() {
     const ips = WB.GAME.incomePerSec();
-    return (ips * 60 * 6 + 200) * sess.victim.wealth * sess.method.mult * (sess.trust / 100);
+    const lvl = (WB.GAME.charLevel && WB.GAME.charLevel()) || 1;
+    // A genuinely satisfying haul: a fat flat base that grows as you level, plus a
+    // slice of your operation, then scaled hard by how rich the victim is and the angle.
+    const flat = 3500 + lvl * 600;          // never feels tiny, scales with progress
+    const fromOps = ips * 60 * 25;          // ~25 minutes of your income
+    const trustBonus = 0.75 + sess.trust / 200; // 0.75–1.25, reward fully working them
+    return Math.round((flat + fromOps) * sess.victim.wealth * sess.method.mult * trustBonus);
   }
 
   // ============================================================ UI
@@ -181,7 +204,7 @@ WB.SCAM = (function () {
         <span class="scam-avatar">${v.avatar}</span>
         <span class="scam-contact-main">
           <span class="scam-contact-top"><b>${v.name}</b><span class="scam-diff">${diff}</span></span>
-          <span class="scam-preview">${m.icon} angle: ${m.name}${scammed ? ` · scammed ×${scammed}` : ""}</span>
+          <span class="scam-preview">${m.icon} ${m.goal}${scammed ? ` · done ×${scammed}` : ""}</span>
         </span></button>`;
     }).join("");
     $("scam-body").innerHTML = `
@@ -198,15 +221,27 @@ WB.SCAM = (function () {
 
   function openChat(vid, mid) {
     const v = VICTIMS.find(x => x.id === vid), m = METHODS.find(x => x.id === mid);
-    sess = { victim: v, method: m, trust: v.startTrust, scare: Math.round(8 + v.skepticism * 18), history: [], over: false, busy: false, reported: false };
+    sess = { victim: v, method: m, trust: v.startTrust, scare: Math.round(8 + v.skepticism * 18),
+      goalTrust: goalTrustFor(v), goalDone: false, cashoutShown: false,
+      history: [], over: false, busy: false, reported: false };
     $("scam-title").textContent = `${v.avatar} ${v.name}`;
     $("scam-sub").textContent = "online now";
     $("scam-back").style.display = "";
     $("scam-body").innerHTML = `
-      <div class="scare-wrap" id="scare-wrap" title="How spooked they are — panic can mean a payday or the police">
-        <span class="scare-emoji" id="scare-emoji">🙂</span>
-        <div class="scare-meter"><div class="scare-cover" id="scare-cover"></div></div>
-        <span class="scare-state" id="scare-state">Calm</span>
+      <div class="chat-goal" id="chat-goal">
+        <div class="goal-line"><span class="goal-ico">${m.goalIcon || "🎯"}</span><span class="goal-txt" id="goal-txt"><b>Goal:</b> ${esc(m.goal)}</span></div>
+        <div class="goal-meters">
+          <div class="trust-row" title="How much they trust you — fill it to secure the goal">
+            <span class="tm-label">❤️ Trust</span>
+            <div class="trust-meter"><div class="trust-fill" id="trust-fill"></div><div class="trust-mark" id="trust-mark"></div></div>
+            <span class="tm-val" id="trust-val">0%</span>
+          </div>
+          <div class="scare-wrap" id="scare-wrap" title="How spooked they are — panic can mean a payday or the police">
+            <span class="scare-emoji" id="scare-emoji">🙂</span>
+            <div class="scare-meter"><div class="scare-cover" id="scare-cover"></div></div>
+            <span class="scare-state" id="scare-state">Calm</span>
+          </div>
+        </div>
       </div>
       <div class="chat-scroll" id="chat-scroll"></div>
       <div class="chat-suggest" id="chat-suggest"></div>
@@ -214,7 +249,10 @@ WB.SCAM = (function () {
         <input id="chat-input" type="text" autocomplete="off" placeholder="Type your message…" maxlength="280">
         <button id="chat-send" class="chat-send">➤</button>
       </div>`;
+    // place the "goal secured" marker on the trust bar
+    const mark = $("trust-mark"); if (mark) mark.style.left = sess.goalTrust + "%";
     setScare(sess.scare);
+    setTrust(sess.trust, true);
     // seed with the angle opener as a suggested first line
     $("chat-suggest").innerHTML = `<button class="suggest-chip" data-s="${m.opener.replace(/"/g, "&quot;")}">💡 ${m.opener}</button>`;
     $("chat-suggest").querySelector(".suggest-chip").onclick = e => { $("chat-input").value = e.target.dataset.s; $("chat-input").focus(); };
@@ -236,6 +274,31 @@ WB.SCAM = (function () {
     if (em.textContent !== e) { em.textContent = e; em.classList.remove("pop"); void em.offsetWidth; em.classList.add("pop"); }
     state.textContent = l;
     wrap.classList.toggle("hot", s >= 75);
+  }
+
+  // ---------- Trust meter + goal ----------
+  function setTrust(val, instant) {
+    if (!sess) return;
+    sess.trust = Math.max(0, Math.min(100, Math.round(val)));
+    const fill = $("trust-fill"), v = $("trust-val");
+    if (!fill) return;
+    fill.style.transition = instant ? "none" : "";
+    fill.style.width = sess.trust + "%";
+    if (instant) { void fill.offsetWidth; fill.style.transition = ""; }
+    if (v) v.textContent = sess.trust + "%";
+    fill.classList.toggle("ready", sess.trust >= sess.goalTrust);
+    maybeSecureGoal();
+  }
+
+  // once trust crosses the goal threshold, the objective is secured → reveal the cash-out
+  function maybeSecureGoal() {
+    if (!sess || sess.over || sess.goalDone) return;
+    if (sess.trust < sess.goalTrust) return;
+    sess.goalDone = true;
+    const g = $("chat-goal"); if (g) g.classList.add("secured");
+    const txt = $("goal-txt");
+    if (txt) txt.innerHTML = `<b>✅ Goal secured!</b> ${esc(sess.method.goal)}`;
+    showCashout("send_money", baseWealthPayout());
   }
 
   function addMsg(who, text, noTime) {
@@ -284,11 +347,11 @@ WB.SCAM = (function () {
     await new Promise(r => setTimeout(r, typing));
     hideTyping();
     if (!sess) return; // chat was closed while they were "typing"
-    sess.trust = typeof reply.trust === "number" ? Math.max(0, Math.min(100, reply.trust)) : sess.trust;
     if (typeof reply.scare === "number") setScare(reply.scare);
     addMsg("them", reply.message);
     $("scam-sub").textContent = (reply.mood || "🙂") + " online now";
     sess.busy = false;
+    if (typeof reply.trust === "number") setTrust(reply.trust);
 
     handleAction(reply);
   }
@@ -298,19 +361,20 @@ WB.SCAM = (function () {
     if (act === "report") return endChat(false, true);
     if (act === "hangup") return endChat(false, false);
     if (act === "send_money" || act === "share_info" || act === "click_link") {
-      const payout = (reply.amount && reply.amount > 0)
-        ? reply.amount * (act === "send_money" ? 1 : 0.4)
-        : baseWealthPayout() * (act === "send_money" ? 1 : 0.45);
+      // always base the take on the satisfying local payout, never the AI's lowball amount
+      const payout = baseWealthPayout() * (act === "send_money" ? 1 : 0.65);
       showCashout(act, payout);
     }
   }
 
   function showCashout(act, payout) {
-    const label = { send_money: "💸 Take the money", share_info: "🪪 Use their info", click_link: "🔗 Drain via the link" }[act];
+    if (!sess || sess.over || sess.cashoutShown) return;
+    sess.cashoutShown = true;
+    const label = { send_money: "💸 Take the money", share_info: "🪪 Use their info", click_link: "🔗 Drain via the link" }[act] || "💸 Cash out";
     const scroll = $("chat-scroll");
     const el = document.createElement("div");
     el.className = "chat-cashout";
-    el.innerHTML = `<button class="btn primary" id="cashout-btn">${label} (+${WB.fmt(payout, true)})</button>`;
+    el.innerHTML = `<button class="btn primary big-cash" id="cashout-btn">${label}<small>+${WB.fmt(payout, true)}</small></button>`;
     scroll.appendChild(el);
     scroll.scrollTop = scroll.scrollHeight;
     $("cashout-btn").onclick = () => { el.remove(); endChat(true, false, payout); };
@@ -323,8 +387,8 @@ WB.SCAM = (function () {
     WB.CRIME.scamResolved(win, payout || 0, v.id, reported);
     let title, lines, icon, cls;
     if (win) {
-      icon = "💰"; title = "Scam Successful"; cls = "win";
-      lines = [`You cleaned out ${v.name}.`, "Heat ticked up. Maybe launder it later."];
+      icon = sess.method.goalIcon || "💰"; title = "Scam Successful"; cls = "win";
+      lines = [sess.method.win || `You cleaned out ${v.name}.`, "Heat ticked up. Maybe launder it later."];
       WB.UI.confetti();
     } else if (reported) {
       icon = "🚨"; title = "You Got Reported"; cls = "bust";

@@ -70,6 +70,7 @@ WB.GAME = (function () {
       gigsDone: 0, lifestyleBought: 0, investProfit: 0, staffHired: 0,
     };
     st.tutorialDone = false;
+    st.empire = { unlocked: 0, ventures: {} }; // secret endgame — survives prestige
     st.lastSaved = Date.now();
     return st;
   }
@@ -138,6 +139,7 @@ WB.GAME = (function () {
   function incomePerSec() {
     if (!s) return 0;
     let inc = careerBaseIncome();
+    inc += WB.EMPIRE ? WB.EMPIRE.income() : 0; // endgame ventures, scaled by everything below
     inc *= speedMult();
     inc *= D.HOUSING[s.housing].mult;
     inc *= equipIncomeMult();
@@ -523,6 +525,7 @@ WB.GAME = (function () {
     const keep = {
       version: s.version, allTimeEarnings: s.allTimeEarnings, era: s.era,
       achievements: s.achievements, prestige: s.prestige, stats: s.stats, lastSaved: s.lastSaved,
+      empire: s.empire, // you don't un-buy the Moon
     };
     const run = freshRun();
     Object.assign(s, run, keep);
@@ -713,6 +716,7 @@ WB.GAME = (function () {
       checkTraits();
       WB.ACHIEVEMENTS.checkAll(s, a2 => UI.notifyAchievement(a2));
       checkPerkOffer();
+      if (WB.EMPIRE) WB.EMPIRE.checkUnlock(UI);
     }
 
     // Autosave

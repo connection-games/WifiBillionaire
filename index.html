@@ -116,14 +116,14 @@
     </div>
   </div>
 
-  <!-- Login / disclaimer -->
+  <!-- Boot screen: Loading… → Looking for updates… → (auto-update w/ progress) → game -->
   <div id="splash">
     <div class="login-bg" aria-hidden="true">
       <div class="login-orb orb-a"></div>
       <div class="login-orb orb-b"></div>
       <div class="login-orb orb-c"></div>
     </div>
-    <div class="login-card menu-card">
+    <div class="login-card boot-card">
       <div class="login-eyebrow"><i></i><span>Connection&nbsp;Games</span><i></i></div>
       <div class="login-logo logo-tile">
         <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -142,31 +142,13 @@
       <h1 class="login-title">WiFi <span>Billionaire</span></h1>
       <div class="login-tag" data-i18n="From a mattress to a market cap">From a mattress to a market cap</div>
 
-      <div class="menu-buttons">
-        <button class="menu-btn" id="mode-casual" data-mode="casual">
-          <span class="mb-ico">🌱</span>
-          <span class="mb-text"><b data-i18n="Casual Mode">Casual Mode</b><small data-i18n="Relaxed pacing">Relaxed pacing</small></span>
-          <span class="mb-go">›</span>
-        </button>
-        <button class="menu-btn speed" id="mode-speedrun" data-mode="speedrun">
-          <span class="mb-ico">⚡</span>
-          <span class="mb-text"><b data-i18n="Speedrun Mode">Speedrun Mode</b><small data-i18n="Everything ×3 faster">Everything ×3 faster</small></span>
-          <span class="mb-go">›</span>
-        </button>
-        <button class="menu-btn" id="mode-settings">
-          <span class="mb-ico">⚙️</span>
-          <span class="mb-text"><b data-i18n="Settings">Settings</b></span>
-          <span class="mb-go">›</span>
-        </button>
+      <div class="boot-status">
+        <span class="boot-spin" id="boot-spin"></span>
+        <span id="boot-text">Loading…</span>
       </div>
-      <div id="mode-info" class="mode-info" data-i18n="Pick a mode to start">Pick a mode to start</div>
+      <div class="boot-bar" id="boot-bar"><div class="boot-fill" id="boot-fill"></div></div>
+      <div class="boot-sub" id="boot-sub"></div>
 
-      <details class="disclaimer mini">
-        <summary class="disc-head">⚠️ Disclaimer</summary>
-        <p>WiFi Billionaire is a work of <b>satire and fiction</b>, made purely for comedy and entertainment.</p>
-        <p>The “Scam Sim” mode is an over-the-top <b>parody</b>. All “victims” are fictional AI characters. It does <b>not</b> teach, encourage, or endorse real fraud, scams, or any illegal activity. Doing these things in real life is harmful and a crime.</p>
-        <p>All money, crimes, and consequences exist only inside this game. Be a good human out there. 💙</p>
-      </details>
       <div class="login-foot"><span id="login-ver"></span><span data-i18n="© 2026 Connection Games · For entertainment only">© 2026 Connection Games · For entertainment only</span></div>
     </div>
   </div>
@@ -180,6 +162,7 @@
   <script src="js/achievements.js"></script>
   <script src="js/assets.js"></script>
   <script src="js/crime.js"></script>
+  <script src="js/empire.js"></script>
   <script src="js/scam.js"></script>
   <script src="js/actions.js"></script>
   <script src="js/game.js"></script>
@@ -188,42 +171,85 @@
   <script>
     (function () {
       const t = (window.WB && WB.t) || (s => s);
-      const sp = document.getElementById('splash');
-      const info = document.getElementById('mode-info');
-      const INFO = {
-        casual: ["CASUAL — the classic experience.", "Normal pacing, no time pressure. Build your empire one ramen at a time. Perfect for long idle sessions."],
-        speedrun: ["SPEEDRUN — for optimizers.", "Income, XP and actions run ~3× faster and events come more often. Reach a billion fast — but chaos comes fast too."],
-        settings: ["⚙️", "Audio, language, gameplay and data options. Opens after you enter the game."],
-      };
-      const setInfo = (k) => {
-        if (!k) { info.classList.remove('show'); return; }
-        info.innerHTML = `<b>${t(INFO[k][0])}</b> ${t(INFO[k][1])}`;
-        info.classList.add('show');
-      };
-      const dismiss = () => { sp.classList.add('out'); setTimeout(() => sp.remove(), 700); };
-      const start = (mode) => { try { localStorage.setItem('wb_mode', mode); } catch (e) {} dismiss(); };
-      document.getElementById('mode-casual').addEventListener('click', () => start('casual'));
-      document.getElementById('mode-speedrun').addEventListener('click', () => start('speedrun'));
-      document.getElementById('mode-settings').addEventListener('click', () => {
-        dismiss();
-        setTimeout(() => { if (WB.UI && WB.UI.showSettings) WB.UI.showSettings(); }, 750);
-      });
-      ['casual', 'speedrun'].forEach(k => {
-        const b = document.getElementById('mode-' + k);
-        b.addEventListener('mouseenter', () => setInfo(k));
-        b.addEventListener('mouseleave', () => setInfo(null));
-      });
-      const s2 = document.getElementById('mode-settings');
-      s2.addEventListener('mouseenter', () => setInfo('settings'));
-      s2.addEventListener('mouseleave', () => setInfo(null));
-      // returning players: relabel casual as Continue
-      try {
-        if (localStorage.getItem('wifi_billionaire_save_v1')) {
-          document.querySelector('#mode-casual b').textContent = t('▶ Continue');
-        }
-      } catch (e) {}
-      const v = (window.wbDesktop && window.wbDesktop.version) || '';
-      if (v) document.getElementById('login-ver').textContent = 'v' + v + ' · ';
+      const $ = id => document.getElementById(id);
+      const sp = $('splash');
+      let done = false, downloading = false;
+
+      const setStatus = (s) => { $('boot-text').textContent = t(s); };
+      const showBar = (on) => { $('boot-bar').classList.toggle('show', !!on); };
+      const setBar = (pct) => { $('boot-fill').style.width = Math.max(0, Math.min(100, pct)) + '%'; };
+      const setSub = (s) => { $('boot-sub').textContent = s || ''; };
+
+      function dismiss() {
+        if (done) return;
+        done = true;
+        sp.classList.add('out');
+        setTimeout(() => {
+          sp.remove();
+          // first open after an update → show the changelog right away
+          try {
+            const cur = (window.WB && WB.VERSION) || '';
+            const seen = localStorage.getItem('wb_seen_ver');
+            localStorage.setItem('wb_seen_ver', cur);
+            if (cur && seen && seen !== cur && WB.UI && WB.UI.showWhatsNew) WB.UI.showWhatsNew();
+          } catch (e) {}
+        }, 700);
+      }
+      function upToDate() {
+        setStatus('You’re up to date ✓');
+        $('boot-spin').classList.add('ok');
+        setTimeout(dismiss, 550);
+      }
+
+      try { if (!localStorage.getItem('wb_mode')) localStorage.setItem('wb_mode', 'casual'); } catch (e) {}
+
+      const D = window.wbDesktop;
+      const v = (D && D.version) || (window.WB && WB.VERSION) || '';
+      if (v) $('login-ver').textContent = 'v' + v + ' · ';
+
+      setTimeout(() => { if (!done && !downloading) setStatus('Looking for updates…'); }, 800);
+
+      if (D && D.isElectron) {
+        let heard = false;
+        D.onUpdateStatus((s) => {
+          heard = true;
+          if (done) return;
+          switch (s.state) {
+            case 'checking':
+              setStatus('Looking for updates…');
+              break;
+            case 'available':
+              downloading = true;
+              setStatus('New update found!' + (s.version ? ' v' + s.version : '') + ' — downloading…');
+              showBar(true); setBar(2);
+              break;
+            case 'progress':
+              downloading = true;
+              setStatus('Downloading update… ' + (s.percent || 0) + '%');
+              showBar(true); setBar(s.percent || 0);
+              setSub(s.bps ? (s.bps / 1048576).toFixed(1) + ' MB/s' : '');
+              break;
+            case 'downloaded':
+              setStatus('Installing — restarting…');
+              showBar(true); setBar(100); setSub('Your save is kept ✨');
+              break; // the app relaunches itself
+            case 'none':
+            case 'dev':
+              upToDate();
+              break;
+            case 'error':
+              // can't reach GitHub etc. — just play; not fatal
+              upToDate();
+              break;
+          }
+        });
+        // safety: if the main process never reports back, open the game anyway
+        setTimeout(() => { if (!heard && !done) dismiss(); }, 9000);
+        setTimeout(() => { if (!done && !downloading) dismiss(); }, 15000);
+      } else {
+        // browser / preview build: quick cosmetic check, then in
+        setTimeout(upToDate, 1500);
+      }
     })();
   </script>
 </body>

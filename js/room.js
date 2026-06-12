@@ -587,6 +587,326 @@ WB.ROOM = (function () {
     return `rgb(${r},${g},${b})`;
   }
 
+  // ============================================================ CUTSCENES
+  // Little in-canvas movies: the police arrest, the drive to the launch pad,
+  // the trip to the Moon. play("arrest"|"launch"|"moon") and the room becomes
+  // a stage until the sequence finishes.
+  let cut = null; // { name, start }
+
+  function play(name) {
+    if (!CUTS[name]) return;
+    cut = { name, start: Date.now() };
+    pos = 160; // keep the thought bubble centered during the movie
+  }
+
+  function caption(text, y) {
+    ctx.font = "bold 9px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(W / 2 - ctx.measureText(text).width / 2 - 5, (y || 158) - 9, ctx.measureText(text).width + 10, 13);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, W / 2, y || 158);
+    ctx.textAlign = "left";
+  }
+  function letterbox() {
+    px(0, 0, W, 9, "#000");
+    px(0, H - 9, W, 9, "#000");
+  }
+  function starsBg(count, seed) {
+    px(0, 0, W, H, "#070b1a");
+    const r = srand(seed || 7);
+    for (let i = 0; i < count; i++) {
+      const sx = Math.floor(r() * W), sy = Math.floor(r() * H);
+      if ((i + Math.floor(frame / 6)) % 7) px(sx, sy, 1, 1, i % 3 ? "#dfe7ff" : "#8fa6ff");
+    }
+  }
+  function tinyGuy(x, y, outfit, step) {
+    // generic 12px-tall pixel person, side profile
+    px(x - 2, y - 12, 6, 4, HAIR);
+    px(x - 1, y - 9, 5, 4, SKIN);
+    px(x - 2, y - 5, 7, 7, outfit);
+    px(x - 2 + (step ? 2 : 0), y + 2, 2, 4, "#39414f");
+    px(x + 1 - (step ? 2 : 0), y + 2, 2, 4, "#39414f");
+  }
+  function copGuy(x, y, step) {
+    px(x - 2, y - 13, 7, 3, "#1d2a4a");          // cap
+    px(x - 1, y - 10, 5, 4, SKIN);
+    px(x - 2, y - 6, 7, 8, "#27408b");           // uniform
+    px(x - 1, y - 4, 2, 2, "#ffd60a");           // badge
+    px(x - 2 + (step ? 2 : 0), y + 2, 2, 4, "#15203d");
+    px(x + 1 - (step ? 2 : 0), y + 2, 2, 4, "#15203d");
+  }
+  function policeCar(x, y, flash) {
+    px(x, y - 8, 44, 9, "#e8eaf0");              // body
+    px(x + 9, y - 14, 24, 7, "#dfe3ea");         // cabin
+    px(x + 11, y - 13, 9, 5, "#9fc4e8");         // windows
+    px(x + 22, y - 13, 9, 5, "#9fc4e8");
+    px(x + 4, y - 5, 16, 5, "#15181f");          // black doors
+    px(x + 18, y - 16, 8, 3, flash ? "#ff453a" : "#0a84ff"); // lightbar
+    px(x + 8, y + 1, 7, 6, "#1d1f24"); px(x + 10, y + 3, 3, 2, "#6e7480");  // wheels
+    px(x + 31, y + 1, 7, 6, "#1d1f24"); px(x + 33, y + 3, 3, 2, "#6e7480");
+  }
+  function sportsCar(x, y) {
+    px(x + 2, y - 7, 42, 8, "#c4322a");          // low body
+    px(x + 12, y - 12, 20, 6, "#a82720");        // cabin
+    px(x + 14, y - 11, 14, 4, "#8fd0f0");        // glass
+    px(x, y - 5, 4, 4, "#ffd97a");               // headlight
+    px(x + 7, y + 1, 7, 6, "#1d1f24"); px(x + 9, y + 3, 3, 2, "#6e7480");
+    px(x + 32, y + 1, 7, 6, "#1d1f24"); px(x + 34, y + 3, 3, 2, "#6e7480");
+  }
+  function rocketSprite(x, y, h2, flame) {
+    const w2 = Math.max(8, Math.round(h2 / 4));
+    px(x - w2 / 2, y - h2, w2, h2, "#e8eaf0");                       // hull
+    px(x - w2 / 2 + 2, y - h2 + 6, w2 - 4, 6, "#9fc4e8");            // window band
+    px(x - w2 / 2, y - h2 - 6, w2, 7, "#c4322a");                    // nose
+    px(x - w2 / 2 - 3, y - 10, 4, 10, "#c4322a");                    // fins
+    px(x + w2 / 2 - 1, y - 10, 4, 10, "#c4322a");
+    if (flame) {
+      const f = Math.floor(frame / 2) % 2;
+      px(x - 3, y, 6, 8 + f * 3, "#ff9f0a");
+      px(x - 1, y, 2, 12 + f * 4, "#ffd60a");
+    }
+  }
+  function roadScroll(speed) {
+    px(0, 120, W, 60, "#3a3d44");                // asphalt
+    px(0, 120, W, 2, "#2c2f35");
+    for (let i = 0; i < 7; i++) {
+      const lx = ((i * 56 - (frame * speed) % 56) + 56) % (W + 56) - 28;
+      px(lx, 146, 26, 3, "#e8d27f");             // lane dashes fly past
+    }
+  }
+  function skylinePan(offset) {
+    px(0, 0, W, 120, "#16203a");                 // night sky
+    const r = srand(31);
+    for (let i = 0; i < 30; i++) {
+      const sx = Math.floor(r() * W), sy = Math.floor(r() * 60);
+      if ((i + Math.floor(frame / 7)) % 6) px(sx, sy, 1, 1, "#cdd8f5");
+    }
+    for (let i = -1; i < 9; i++) {               // parallax towers
+      const bx = ((i * 48 - offset * 0.4) % (W + 48) + W + 48) % (W + 48) - 48;
+      const bh = 34 + ((i * 37) % 40);
+      px(bx, 120 - bh, 30, bh, "#222c49");
+      for (let wn = 0; wn < bh / 9; wn++)
+        if ((i * 7 + wn) % 3) px(bx + 4 + (wn % 3) * 8, 120 - bh + 4 + wn * 9, 4, 4, "#ffd97a");
+    }
+  }
+
+  // --- arrest scenes ---
+  function sceneKnock(p) {
+    const s = getState(), pal = PAL[s.housing] || PAL[0];
+    px(0, 0, W, FLOOR_Y, pal.wall);
+    px(0, FLOOR_Y, W, H - FLOOR_Y, pal.floor);
+    px(0, FLOOR_Y, W, 2, pal.trim);
+    // door on the right, rattling
+    const shake2 = Math.floor(frame / 2) % 2 && p > 0.25 ? 1 : 0;
+    px(252 + shake2, 30, 44, FLOOR_Y - 28, "#5b432e");
+    px(256 + shake2, 34, 36, FLOOR_Y - 36, "#6e5238");
+    px(286 + shake2, 74, 5, 5, "#caa54a"); // handle
+    // red/blue washes through the window
+    const wx = 26, wy = 22;
+    px(wx - 4, wy - 4, 68, 52, pal.trim);
+    px(wx, wy, 60, 44, Math.floor(frame / 3) % 2 ? "rgba(255,69,58,0.6)" : "rgba(10,132,255,0.6)");
+    ctx.fillStyle = Math.floor(frame / 3) % 2 ? "rgba(255,69,58,0.10)" : "rgba(10,132,255,0.10)";
+    ctx.fillRect(0, 0, W, H);
+    // startled entrepreneur mid-room, sweat drop
+    const gx = 150, gy = FLOOR_Y + 6;
+    tinyGuy(gx, gy + 14, ERA_HOODIE[s.era || 0], Math.floor(frame / 3) % 2);
+    px(gx + 5, gy - 2, 2, 3, "#8fd0f0"); // sweat
+    if (p > 0.2) caption("👮 OPEN UP! POLICE!", 24);
+    if (p > 0.62) caption("...maybe it's the pizza guy?", 158);
+  }
+  function sceneEscort(p) {
+    px(0, 0, W, 120, "#1b2742");                 // night
+    const r = srand(17);
+    for (let i = 0; i < 22; i++) { const sx = Math.floor(r() * W), sy = Math.floor(r() * 70); if (i % 5) px(sx, sy, 1, 1, "#cdd8f5"); }
+    px(0, 120, W, 60, "#2f3a30");                // lawn
+    px(0, 120, W, 3, "#27442c");
+    // house facade left
+    px(10, 38, 96, 84, "#6b5a78");
+    px(4, 26, 108, 14, "#4a3d54");               // roof
+    px(26, 56, 20, 18, "#16203a"); px(70, 56, 20, 18, "#ffd97a"); // windows (one lit)
+    px(46, 86, 22, 36, "#5b432e");               // front door, open dark
+    px(48, 88, 18, 34, "#241c12");
+    // police car right, lights going
+    policeCar(236, 116, Math.floor(frame / 3) % 2);
+    ctx.fillStyle = Math.floor(frame / 3) % 2 ? "rgba(255,69,58,0.07)" : "rgba(10,132,255,0.07)";
+    ctx.fillRect(0, 0, W, H);
+    // procession walks door → car
+    const x = 64 + p * 160;
+    const step = Math.floor(frame / 3) % 2;
+    copGuy(x - 16, 116, step);
+    const s = getState();
+    tinyGuy(x, 116, ERA_HOODIE[s.era || 0], step ? 0 : 1);
+    px(x - 2, 112, 6, 2, "#9a9da6");             // cuffs
+    copGuy(x + 15, 116, step ? 0 : 1);
+    caption(p < 0.5 ? "\"It was a PARODY, officer!\"" : "\"Mind the hair. The hair is the brand.\"", 158);
+  }
+  function sceneDrive(p, kind, toRocket) {
+    skylinePan(frame * 3);
+    roadScroll(6);
+    if (toRocket) { // launch site grows on the horizon
+      const rh = 18 + p * 26;
+      rocketSprite(284, 120, rh, false);
+      px(270, 114, 34, 6, "#4a5160");            // pad
+    }
+    const carX = 120 + Math.sin(frame / 5) * 2;
+    if (kind === "police") {
+      policeCar(carX, 138, Math.floor(frame / 3) % 2);
+      px(carX + 23, 128, 6, 5, SKIN);            // sad face in the back window
+      px(carX + 22, 126, 8, 3, HAIR);
+    } else {
+      sportsCar(carX, 138);
+      px(carX + 17, 130, 6, 4, HAIR);            // hair in the wind
+      px(carX + 18, 133, 5, 3, SKIN);
+    }
+    for (let i = 0; i < 4; i++) {                // speed lines
+      const lx = (W - ((frame * 14 + i * 83) % (W + 40)));
+      px(lx, 96 + i * 10, 18, 1, "rgba(255,255,255,0.25)");
+    }
+    caption(kind === "police" ? "Downtown. Booking. No WiFi." : "🎵 to the launch pad — radio: full blast", 158);
+  }
+  function sceneJailArrive(p) {
+    px(0, 0, W, 120, "#141c33");
+    const r = srand(23);
+    for (let i = 0; i < 18; i++) { const sx = Math.floor(r() * W), sy = Math.floor(r() * 56); if (i % 4) px(sx, sy, 1, 1, "#cdd8f5"); }
+    px(0, 120, W, 60, "#3a3d44");
+    // the county jail: grim, rectangular, judgmental
+    px(86, 34, 150, 88, "#4b4e55");
+    px(80, 26, 162, 10, "#3f424a");
+    for (let i = 0; i < 4; i++) {
+      px(98 + i * 34, 50, 18, 14, "#16203a");
+      for (let b = 0; b < 3; b++) px(101 + i * 34 + b * 5, 50, 2, 14, "#22242a");
+    }
+    px(146, 92, 30, 30, "#22242a");              // gate
+    ctx.font = "bold 8px 'Courier New', monospace";
+    ctx.fillStyle = "#c8cad0";
+    ctx.textAlign = "center";
+    ctx.fillText("COUNTY JAIL", 161, 44);
+    ctx.textAlign = "left";
+    // car pulls up
+    const carX = -50 + Math.min(1, p * 1.6) * 170;
+    policeCar(carX, 138, Math.floor(frame / 3) % 2);
+    if (p > 0.55) caption("\"One phone call. I'm calling my accountant.\"", 158);
+    if (p > 0.8) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.8) * 5})`; ctx.fillRect(0, 0, W, H); } // fade to cell
+  }
+
+  // --- space scenes ---
+  function sceneWalkOut(p) {
+    const s = getState(), pal = PAL[s.housing] || PAL[0];
+    px(0, 0, W, FLOOR_Y, pal.wall);
+    px(0, FLOOR_Y, W, H - FLOOR_Y, pal.floor);
+    px(0, FLOOR_Y, W, 2, pal.trim);
+    // open door, golden light spilling in
+    px(252, 30, 44, FLOOR_Y - 28, "#5b432e");
+    px(258, 34, 34, FLOOR_Y - 36, "#ffd97a");
+    ctx.fillStyle = "rgba(255,217,122,0.10)";
+    ctx.beginPath(); ctx.moveTo(258, 34); ctx.lineTo(190, FLOOR_Y + 40); ctx.lineTo(300, FLOOR_Y + 40); ctx.closePath(); ctx.fill();
+    drawWalker(40 + p * 230, 1, s.era || 0);
+    caption("Today we leave the planet. Casually.", 158);
+  }
+  function sceneBoard(p) {
+    starsBg(36, 11);
+    px(0, 132, W, 48, "#4a5160");                // concrete pad
+    px(0, 132, W, 3, "#3a4150");
+    rocketSprite(248, 132, 86, false);
+    px(216, 50, 6, 82, "#3a4150");               // gantry tower
+    for (let i = 0; i < 7; i++) px(216, 54 + i * 11, 26, 2, "#3a4150");
+    px(190, 128, 10, 4, frame % 8 < 4 ? "#ff453a" : "#7a2620"); // warning light
+    sportsCar(30, 146);
+    const s = getState();
+    if (p < 0.75) drawWalker(86 + p * 200, 1, s.era || 0);
+    else { px(244, 78, 8, 8, "#ffd97a"); }       // he's in — capsule window glows
+    caption(p < 0.5 ? "Steps? Where we're going we don't need steps." : "Boarding. Mr. Whiskers has the conn.", 158);
+  }
+  function sceneLaunch(p) {
+    starsBg(Math.round(20 + p * 40), 13);
+    const shake2 = p < 0.3 ? Math.floor(frame % 3) - 1 : 0;
+    // ground falls away
+    if (p < 0.45) {
+      const gy = 150 + p * 110;
+      px(0, gy, W, H, "#2f3a30");
+      px(40, gy + 4, 60, 6, "#4a5160");
+      px(220, gy + 4, 70, 6, "#4a5160");
+    }
+    const ry = 150 - p * 120;
+    rocketSprite(160 + shake2, ry, 52, true);
+    // smoke puffs at liftoff
+    if (p < 0.4) for (let i = 0; i < 6; i++) {
+      const sx = 130 + ((i * 47 + frame * 5) % 70);
+      px(sx, 152 + (i % 3) * 6 - p * 60, 8, 5, `rgba(220,220,228,${0.5 - p})`);
+    }
+    caption(p < 0.35 ? "IGNITION. 🔥" : p < 0.7 ? "Goodbye taxes— I mean, gravity!" : "Space. It's quieter than the comment section.", 158);
+  }
+  function sceneMoon(p) {
+    starsBg(46, 19);
+    // Earth hangs in the corner
+    px(264, 22, 26, 26, "#3f7ec2");
+    px(269, 27, 9, 6, "#5da05c");
+    px(274, 38, 8, 5, "#5da05c");
+    px(264, 22, 26, 4, "rgba(255,255,255,0.25)");
+    // moon ground + craters
+    px(0, 128, W, 52, "#9a9da6");
+    px(0, 128, W, 3, "#b9bcc4");
+    [[40, 146, 18], [120, 158, 12], [228, 150, 22], [288, 164, 10]].forEach(([cx2, cy2, cw2]) => {
+      px(cx2, cy2, cw2, 4, "#7e828c");
+      px(cx2 + 2, cy2 + 1, cw2 - 4, 2, "#6e727c");
+    });
+    rocketSprite(252, 128, 62, false);
+    const s = getState();
+    if (p < 0.4) { // bounce out of the rocket, low gravity
+      const hop = Math.abs(Math.sin(frame / 3)) * 6;
+      tinyGuy(236 - p * 280 * 0.4 * 2.5 + 90, 124 - hop, ERA_HOODIE[s.era || 0], Math.floor(frame / 4) % 2);
+    } else {
+      tinyGuy(150, 124, ERA_HOODIE[s.era || 0], 0);
+      // plant the flag: green banner, $ on it
+      px(160, 86, 2, 38, "#c8cad0");
+      const wave = Math.floor(frame / 4) % 2;
+      px(162, 86, 22 + wave, 14, "#34c759");
+      ctx.font = "bold 9px 'Courier New', monospace";
+      ctx.fillStyle = "#0a3d1e";
+      ctx.fillText("$", 169, 96);
+    }
+    caption(p < 0.4 ? "One small hop for a billionaire…" : "🌕 THE MOON IS YOURS.", 158);
+    if (p > 0.92) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.92) * 10})`; ctx.fillRect(0, 0, W, H); }
+  }
+
+  const CUTS = {
+    arrest: [
+      { dur: 2100, draw: sceneKnock },
+      { dur: 2700, draw: sceneEscort },
+      { dur: 2500, draw: p => sceneDrive(p, "police") },
+      { dur: 2100, draw: sceneJailArrive },
+    ],
+    launch: [
+      { dur: 1700, draw: sceneWalkOut },
+      { dur: 2500, draw: p => sceneDrive(p, "sports", true) },
+      { dur: 2200, draw: sceneBoard },
+      { dur: 3000, draw: sceneLaunch },
+    ],
+    moon: [
+      { dur: 1700, draw: sceneWalkOut },
+      { dur: 2500, draw: p => sceneDrive(p, "sports", true) },
+      { dur: 2200, draw: sceneBoard },
+      { dur: 3000, draw: sceneLaunch },
+      { dur: 3600, draw: sceneMoon },
+    ],
+  };
+
+  function drawCut() {
+    const seq = CUTS[cut.name];
+    let t = Date.now() - cut.start;
+    for (const ph of seq) {
+      if (t < ph.dur) {
+        ph.draw(Math.max(0, Math.min(1, t / ph.dur)));
+        letterbox();
+        return true;
+      }
+      t -= ph.dur;
+    }
+    cut = null;
+    return false;
+  }
+
   // ---------- Detail pass: clock, curtains, ceiling light, cat, clutter, asset props ----------
   function drawClock() {
     const cx2 = 160, cy2 = 30;
@@ -736,6 +1056,11 @@ WB.ROOM = (function () {
     const s = getState();
     if (!s || !ctx) return;
 
+    // a cutscene is playing — the room is a movie set until it ends
+    if (cut) {
+      if (drawCut()) { frame++; return; }
+    }
+
     // locked up? the whole scene becomes a cell until release
     if (window.WB && WB.CRIME && WB.CRIME.inPrison()) {
       pos = 258; // on the bunk
@@ -818,5 +1143,5 @@ WB.ROOM = (function () {
     draw();
   }
 
-  return { init, charX: () => pos / W };
+  return { init, play, charX: () => pos / W, cutActive: () => !!cut };
 })();

@@ -69,14 +69,15 @@ cd build && swift make-installer-assets.swift . \
 ```
 
 ### Future updates
-1. Make changes, bump the version in `package.json` (e.g. `5.0.1`).
-2. Commit, then `git tag v5.0.1 && git push origin v5.0.1`.
-3. CI builds & publishes the new release. Installed apps check on startup (and every 6h),
-   download in the background, and show a **Restart to update** banner. User saves are kept.
+1. Make changes, bump the version in `package.json` **and** `WB.VERSION` in `js/data.js` (e.g. `6.0.1`).
+2. Commit, then `git tag v6.0.1 && git push origin v6.0.1`.
+3. CI builds & publishes the new release. Installed apps update **by themselves** on
+   the next launch — boot screen progress bar, automatic restart, saves kept.
 
-### How auto-update works (v5.0.3+)
-On every launch (and every 6 h) the app checks this repo's latest release. If a newer
-version exists it shows a native **"New Update! Wish to install now?" Yes/No** dialog:
+### How auto-update works (v6.0+)
+The boot screen runs **Loading… → Looking for updates…**. If a newer release exists
+the update installs fully automatically (no dialogs) with a progress bar, the app
+restarts itself, and the **changelog pops up** on the first open of the new version:
 - **Windows:** electron-updater downloads the NSIS package and silently reinstalls + restarts.
 - **macOS:** unsigned apps can't use Apple's update path, so the app updates itself —
   it downloads `WiFi-Billionaire.zip`, verifies the release's sha512 checksum, swaps
@@ -85,8 +86,8 @@ version exists it shows a native **"New Update! Wish to install now?" Yes/No** d
 ### Auto-update testing
 - Auto-update only runs in the **packaged** app (skipped in `npm start`).
 - Install an older version from its release page (not "latest"), publish a newer tag,
-  then launch the old app → the "New Update!" dialog appears → Yes → progress bar →
-  the game restarts on the new version with saves intact.
+  then launch the old app → boot screen finds the update → progress bar → auto-restart →
+  the new version opens with the changelog showing and saves intact.
 
 ### Where user data lives (audited)
 All saves/settings are `localStorage`, transparently backed by a JSON file in the OS

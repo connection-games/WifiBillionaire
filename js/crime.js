@@ -77,6 +77,7 @@ WB.CRIME = (function () {
     c.prisonUntil = now() + sec * 1000;
     c.prisonReason = reason;
     c.timesCaught++;
+    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("arrest"); // sirens, cuffs, the ride downtown
     WB.UI.toast(`🚔 BUSTED: ${reason} — ${WB.fmtTime(sec)} in jail. Manual actions are locked.`, "bad");
     WB.UI.bubble(WB.pick([
       "Okay this is fine. This is a networking opportunity. In prison.",

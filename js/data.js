@@ -199,6 +199,9 @@ WB.DATA = (function () {
   return { HOUSING, EQUIPMENT, CAREERS, SKILLS, ACTIVITIES, ERAS, TRAITS, PERKS, PRESTIGE_UPGRADES, GOALS };
 })();
 
+// ---------- Build version (keep in sync with package.json) ----------
+WB.VERSION = "6.0.0";
+
 // ---------- Number formatting ----------
 WB.fmt = function (n, money) {
   if (n === undefined || n === null || isNaN(n)) n = 0;

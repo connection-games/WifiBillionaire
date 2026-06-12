@@ -81,6 +81,20 @@ WB.I18N = (function () {
       "Ljud, språk, spel- och datainställningar. Öppnas när du klivit in i spelet.",
     "▶ Continue": "▶ Fortsätt",
     "© 2026 Connection Games · For entertainment only": "© 2026 Connection Games · Endast för underhållning",
+    // boot screen (v6: auto-update on open)
+    "Loading…": "Laddar…", "Looking for updates…": "Letar efter uppdateringar…",
+    "You’re up to date ✓": "Du har senaste versionen ✓",
+    "Installing — restarting…": "Installerar — startar om…",
+    "What's New": "Vad är nytt",
+    "The game updated itself while you weren't looking. Here's the loot:": "Spelet uppdaterade sig självt medan du tittade bort. Här är bytet:",
+    "Let's go!": "Nu kör vi!",
+    // game mode in settings
+    "🎮 Game Mode": "🎮 Spelläge",
+    "Casual — relaxed pacing": "Lugnt — avslappnat tempo",
+    "Speedrun — everything ×3 faster": "Speedrun — allt ×3 snabbare",
+    "Applies instantly — switch any time.": "Gäller direkt — byt när du vill.",
+    // empire
+    "Empire": "Imperium",
     // hygiene & bathroom
     "🧼 Hygiene": "🧼 Hygien", "Bathroom Break": "Toalettpaus", "very important business": "mycket viktiga affärer",
     // easter egg

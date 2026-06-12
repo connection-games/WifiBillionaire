@@ -52,10 +52,15 @@
     b.innerHTML = html;
   }
 
+  // The boot screen owns update UI while it's visible; this banner only kicks
+  // in for updates that arrive after the game is already open (manual checks).
+  const bootVisible = () => !!document.getElementById('splash');
+
   D.onUpdateStatus((s) => {
+    if (bootVisible()) return;
     switch (s.state) {
       case 'available':
-        render(`<span class="upd-spin"></span><div><b>Update available${s.version ? ' (v' + s.version + ')' : ''}</b><div class="upd-sub">Waiting for your choice…</div></div>`);
+        render(`<span class="upd-spin"></span><div><b>Update found${s.version ? ' (v' + s.version + ')' : ''}</b><div class="upd-sub">Downloading automatically…</div></div>`);
         break;
       case 'progress':
         render(`<span class="upd-spin"></span><div style="flex:1"><b>Downloading update… ${s.percent}%</b>
@@ -63,12 +68,8 @@
           <div class="upd-sub">${fmtBps(s.bps)}</div></div>`);
         break;
       case 'downloaded':
-        render(`<div style="flex:1"><b>✅ Update ready${s.version ? ' (v' + s.version + ')' : ''}</b>
-          <div class="upd-sub">Your saves are kept. Restart to finish.</div></div>
-          <button class="btn primary" id="upd-restart">Restart</button>
-          <button class="upd-x" id="upd-later">Later</button>`, 'ready');
-        document.getElementById('upd-restart').onclick = () => D.restartToUpdate();
-        document.getElementById('upd-later').onclick = hide;
+        render(`<div style="flex:1"><b>✅ Update installed${s.version ? ' (v' + s.version + ')' : ''}</b>
+          <div class="upd-sub">Restarting — your save is kept.</div></div>`, 'ready');
         break;
       case 'error':
         // non-fatal: keep playing, just inform briefly
