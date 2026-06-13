@@ -179,6 +179,17 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.3 — Online & Alive", items: [
+      "🏆 NEW: global leaderboard + live player count, powered by the cloud — climb the ranks by net worth.",
+      "👋 NEW: first-launch onboarding — pick your username, language and theme before you start.",
+      "🎯 NEW: a Challenges tab with 12 claimable goals (bronze/silver/gold) and juicy rewards.",
+      "💩 NEW: when nature calls you must choose — run to the toilet, or… don't (the chair remembers). Plus a 🧹 Clean Up action as dirt builds up over time.",
+      "⛓️ Jail overhaul: behind bars you now Work Out, do Yard Time, read law books or sleep — no more 'building a SaaS' on the way to prison.",
+      "🎬 Fixed: the project progress bar and thought bubbles no longer show during cutscenes.",
+      "🧍 The character got a detail pass (sneakers, hoodie strings, a real face), and the room screen is bigger.",
+      "🔧 Auto-updater hardened (Chromium network stack + retries) — no more false 'couldn't check for updates'.",
+      "🧹 Removed the Socials tab.",
+    ]},
     { v: "v6.2.2 — Onboarding & Installer Polish", items: [
       "🧑‍🏫 Tutorial 3.0: the help card now shrinks in from each thing it explains and points right at it with a little beak — crystal clear what you're looking at.",
       "💿 Branded installer: the Mac DMG now opens on a deep-navy window with the big app icon and Applications folder (no more blank grey box), and each version mounts under its own name.",
@@ -451,7 +462,70 @@ WB.UI = (function () {
       st.tutorialDone = true;
       return;
     }
-    setTimeout(() => showTutStep(0), 3200); // let the splash finish first
+    setTimeout(() => showTutStep(0), 1200); // onboarding/splash already finished
+  }
+
+  // ============================================================ Onboarding (first launch)
+  function showOnboarding(onDone) {
+    let lang = WB.I18N.lang();
+    let theme = document.documentElement.getAttribute("data-theme") || "light";
+    const ov = document.createElement("div");
+    ov.id = "onboard";
+    ov.innerHTML = `
+      <div class="onboard-card">
+        <div class="ob-logo logo-tile"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="6" width="108" height="108" rx="28" fill="#101a35"/>
+          <path d="M28 56c9-9 20-13.5 32-13.5S83 47 92 56" stroke="#4dde80" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <path d="M38 68c6-6 13.5-9 22-9s16 3 22 9" stroke="#4dde80" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="86" r="11" fill="#ffc83d"/><text x="60" y="91" text-anchor="middle" font-size="15" font-weight="800" fill="#5a3804">$</text>
+        </svg></div>
+        <h1 class="ob-title">Welcome to <span>WiFi Billionaire</span></h1>
+        <p class="ob-tag">Let's set you up — you can change all of this later in Settings.</p>
+
+        <label class="ob-label">👤 Username <span class="ob-hint">— how you'll show on the global leaderboard</span></label>
+        <input id="ob-name" class="ob-input" maxlength="20" placeholder="e.g. RamenTycoon" autocomplete="off" spellcheck="false">
+
+        <label class="ob-label">🌍 Language</label>
+        <div class="ob-choices" id="ob-lang">
+          <button class="ob-choice ${lang === "en" ? "active" : ""}" data-v="en">🇬🇧 English</button>
+          <button class="ob-choice ${lang === "sv" ? "active" : ""}" data-v="sv">🇸🇪 Svenska</button>
+        </div>
+
+        <label class="ob-label">🎨 Theme</label>
+        <div class="ob-choices" id="ob-theme">
+          <button class="ob-choice ${theme === "light" ? "active" : ""}" data-v="light">☀️ Light</button>
+          <button class="ob-choice ${theme === "dark" ? "active" : ""}" data-v="dark">🌙 Dark</button>
+        </div>
+
+        <button class="btn primary wide ob-start" id="ob-start">Start the grind →</button>
+        <div class="ob-foot">📶 A satire game by Connection Games · for entertainment only</div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => ov.classList.add("in"));
+    setTimeout(() => { const n = $("ob-name"); if (n) n.focus(); }, 350);
+
+    ov.querySelector("#ob-lang").onclick = (e) => {
+      const b = e.target.closest(".ob-choice"); if (!b) return;
+      lang = b.dataset.v;
+      ov.querySelectorAll("#ob-lang .ob-choice").forEach(x => x.classList.toggle("active", x === b));
+    };
+    ov.querySelector("#ob-theme").onclick = (e) => {
+      const b = e.target.closest(".ob-choice"); if (!b) return;
+      theme = b.dataset.v; applyTheme(theme); // live preview
+      ov.querySelectorAll("#ob-theme .ob-choice").forEach(x => x.classList.toggle("active", x === b));
+    };
+    $("ob-name").onkeydown = (e) => { if (e.key === "Enter") $("ob-start").click(); };
+    $("ob-start").onclick = () => {
+      const name = ($("ob-name").value.trim() || "Player").slice(0, 20);
+      const langChanged = lang !== WB.I18N.lang();
+      try { localStorage.setItem("wb_username", name); localStorage.setItem("wb_onboarded", "1"); } catch (e) {}
+      WB.I18N.setLang(lang);
+      applyTheme(theme);
+      ov.classList.remove("in"); ov.classList.add("out");
+      setTimeout(() => ov.remove(), 450);
+      if (langChanged) { setTimeout(() => location.reload(), 300); return; } // re-render UI in the chosen language
+      if (onDone) setTimeout(onDone, 300);
+    };
   }
 
   // ============================================================ Confetti
@@ -498,10 +572,10 @@ WB.UI = (function () {
   function setSetting(k, v) { try { localStorage.setItem("wb_set_" + k, v ? "1" : "0"); } catch (e) {} }
 
   // ============================================================ Tabs (consolidated)
-  const TABS = { shop: "🛒 Shop", careers: "💼 Careers", crime: "🦹 Crime", socials: "📱 Socials", profile: "🧠 Profile", prestige: "♻️ Prestige" };
-  const SUBTABS = { shop: ["gear", "assets"], profile: ["skills", "awards", "stats"] };
-  const SUB_LABEL = { gear: "🛠️ Gear & Home", assets: "💎 Assets", skills: "🧠 Skills", awards: "🏆 Awards", stats: "📊 Stats" };
-  const sub = { shop: "gear", profile: "skills" };
+  const TABS = { shop: "🛒 Shop", careers: "💼 Careers", crime: "🦹 Crime", challenges: "🎯 Challenges", profile: "🧠 Profile", prestige: "♻️ Prestige" };
+  const SUBTABS = { shop: ["gear", "assets"], profile: ["skills", "awards", "stats"], challenges: ["list", "leaderboard"] };
+  const SUB_LABEL = { gear: "🛠️ Gear & Home", assets: "💎 Assets", skills: "🧠 Skills", awards: "🏆 Awards", stats: "📊 Stats", list: "🎯 Challenges", leaderboard: "🏆 Leaderboard" };
+  const sub = { shop: "gear", profile: "skills", challenges: "list" };
 
   function subBar(tab) {
     if (!SUBTABS[tab]) return "";
@@ -728,6 +802,92 @@ WB.UI = (function () {
     return html;
   }
 
+  // ---------- Challenges tab ----------
+  function tabChallenges() {
+    const list = WB.DATA.CHALLENGES;
+    const claimedCount = list.filter(c => st.challengesClaimed[c.id]).length;
+    let html = `
+      <div class="chal-hero">
+        <div class="chal-hero-top"><b>🎯 Challenges</b><span class="chal-count">${claimedCount}/${list.length}</span></div>
+        <div class="chal-hero-sub">Hit the targets, claim the rewards. Progress is tracked across every life.</div>
+        <div class="chal-hero-bar"><div class="chal-hero-fill" style="width:${claimedCount / list.length * 100}%"></div></div>
+      </div>
+      <div class="chal-grid">`;
+    list.forEach(c => {
+      const claimed = !!st.challengesClaimed[c.id];
+      const raw = Math.max(0, c.prog(st));
+      const pct = Math.min(100, raw / c.goal * 100);
+      const done = raw >= c.goal;
+      const fmtN = n => n >= 1000 ? WB.fmt(n) : Math.floor(n);
+      const state = claimed ? "claimed" : done ? "ready" : "locked";
+      html += `
+        <div class="chal-card ${c.tier} ${state}">
+          <div class="chal-card-head"><span class="chal-ico">${c.icon}</span>
+            <span class="chal-tier">${c.tier}</span></div>
+          <b class="chal-name">${WB.t(c.name)}</b>
+          <div class="chal-desc">${WB.t(c.desc)}</div>
+          <div class="chal-bar"><div class="chal-fill" style="width:${pct}%"></div></div>
+          <div class="chal-meta"><span>${fmtN(Math.min(raw, c.goal))} / ${fmtN(c.goal)}</span><span class="chal-reward">${WB.t(c.rewardText)}</span></div>
+          ${claimed
+            ? `<div class="chal-claimed">✓ ${WB.t("Claimed")}</div>`
+            : done
+              ? `<button class="btn primary chal-claim" data-act="claimchal" data-key="${c.id}">🎁 ${WB.t("Claim reward")}</button>`
+              : `<div class="chal-progresslbl">${Math.floor(pct)}%</div>`}
+        </div>`;
+    });
+    return html + `</div>`;
+  }
+  function claimChallenge(id) {
+    const c = WB.DATA.CHALLENGES.find(x => x.id === id);
+    if (!c || st.challengesClaimed[id] || c.prog(st) < c.goal) return;
+    st.challengesClaimed[id] = Date.now();
+    const r = c.reward;
+    let msg;
+    if (r.money) { const amt = WB.GAME.incomePerSec() * 60 * r.money + 250; WB.GAME.earn(amt); msg = "+" + WB.fmt(amt, true); }
+    else if (r.boost) { st.boost = { mult: r.boost.mult, until: Date.now() + r.boost.sec * 1000 }; msg = `×${r.boost.mult} income for ${r.boost.sec}s`; }
+    else if (r.legacy) { st.prestige.legacy += r.legacy; msg = `+${r.legacy} Legacy`; }
+    else if (r.followers) { st.stats.followers += r.followers; msg = `+${WB.fmt(r.followers)} fans`; }
+    toast(`🎯 Challenge complete: ${WB.t(c.name)} — ${msg}`, "goal");
+    confetti();
+    renderTab(true);
+  }
+
+  // ---------- 🏆 Global leaderboard (Firebase) ----------
+  function playerName() { try { return localStorage.getItem("wb_username") || "Anon"; } catch (e) { return "Anon"; } }
+  function tabLeaderboard() {
+    const C = WB.CLOUD;
+    const online = C && C.enabled ? `🟢 ${C.online} ${WB.t("online now")}` : `⚪ ${WB.t("offline")}`;
+    return `
+      <div class="lb-hero">
+        <div class="lb-hero-top"><b>🏆 Global Leaderboard</b><span class="lb-online">${online}</span></div>
+        <div class="lb-hero-sub">${WB.t("Ranked by net worth across every player. You compete as")} <b>${esc(playerName())}</b>.</div>
+      </div>
+      <div id="lb-body" class="lb-body"><div class="lb-loading">⏳ ${WB.t("Loading the leaderboard…")}</div></div>`;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+  async function loadLeaderboard() {
+    const body = $("lb-body");
+    if (!body) return;
+    const C = WB.CLOUD;
+    if (!C) { body.innerHTML = `<div class="lb-empty">⏳ ${WB.t("Connecting…")}</div>`; return; }
+    await C.ready;
+    if (!C.enabled) {
+      body.innerHTML = `<div class="lb-empty">📡 ${WB.t("Leaderboard is offline.")}<br><span class="muted">${WB.t("The owner needs to enable Firestore + Anonymous sign-in (see js/cloud.js).")}</span></div>`;
+      return;
+    }
+    await C.submitScore({ name: playerName(), netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
+    const rows = await C.fetchTop(25);
+    if (!rows || !rows.length) { body.innerHTML = `<div class="lb-empty">${WB.t("No scores yet — be the first!")}</div>`; return; }
+    const medal = i => ["🥇", "🥈", "🥉"][i] || `<span class="lb-rank">${i + 1}</span>`;
+    body.innerHTML = rows.map((r, i) => `
+      <div class="lb-row ${r.id === C.uid ? "me" : ""}">
+        <span class="lb-pos">${medal(i)}</span>
+        <span class="lb-name">${esc(r.name || "Anon")}${r.id === C.uid ? ` <span class="lb-you">${WB.t("you")}</span>` : ""}</span>
+        <span class="lb-era">${(WB.DATA.ERAS[r.era] || {}).name ? WB.t(WB.DATA.ERAS[r.era].name) : ""}${r.prestige ? ` · ♻️${r.prestige}` : ""}</span>
+        <span class="lb-net">${WB.fmt(r.netWorth, true)}</span>
+      </div>`).join("");
+  }
+
   const crimeDescCache = {}; // fill() once per crime — random slot-fills would re-randomize every render
   function tabCrime() {
     const C = WB.CRIME, c = C.crimeState();
@@ -828,13 +988,29 @@ WB.UI = (function () {
     $("tabs").innerHTML = html;
   }
 
+  // ---------- Activity bar (free vs jail) ----------
+  let lastActBarJailed = null;
+  function buildActivities(jailed) {
+    const keys = jailed
+      ? ["workout", "yard", "study", "rest"]                                  // what you can do behind bars
+      : Object.keys(D.ACTIVITIES).filter(k => !D.ACTIVITIES[k].jailOnly);     // normal life
+    $("activities").innerHTML = keys.map(key => {
+      const a = D.ACTIVITIES[key];
+      return `<button class="act-btn" data-focus="${key}"><span>${a.icon}</span><small>${WB.t(a.name)}</small></button>`;
+    }).join("");
+    // make sure the current focus is valid for the context
+    if (jailed && !["workout", "yard", "study", "rest"].includes(st.focus)) WB.GAME.setFocus("yard");
+    if (!jailed && D.ACTIVITIES[st.focus] && D.ACTIVITIES[st.focus].jailOnly) WB.GAME.setFocus("code");
+  }
+
   let tabHovered = false; // periodic refreshes pause while the pointer is in the panel (anti hover-flicker)
   function renderTab(force) {
     if (!force && tabHovered) return;
     let html;
     if (activeTab === "shop") html = subBar("shop") + (sub.shop === "gear" ? tabStore() : tabAssets());
     else if (activeTab === "profile") html = subBar("profile") + (sub.profile === "skills" ? tabSkills() : sub.profile === "awards" ? tabAchievements() : tabStats());
-    else html = ({ careers: tabCareers, crime: tabCrime, socials: tabSocials, prestige: tabPrestige, empire: tabEmpire }[activeTab] || tabStore)();
+    else if (activeTab === "challenges") { html = subBar("challenges") + (sub.challenges === "list" ? tabChallenges() : tabLeaderboard()); if (sub.challenges === "leaderboard") setTimeout(loadLeaderboard, 30); }
+    else html = ({ careers: tabCareers, crime: tabCrime, prestige: tabPrestige, empire: tabEmpire }[activeTab] || tabStore)();
     if (html !== lastTabHtml || force) {
       lastTabHtml = html;
       $("tab-content").innerHTML = html;
@@ -861,6 +1037,7 @@ WB.UI = (function () {
       }
     }
     else if (act === "bail") WB.CRIME.postBail();
+    else if (act === "claimchal") { claimChallenge(key); return; }
     else if (act === "openscam") WB.SCAM.open();
     else if (act === "dopost") { const r = WB.ACTIONS.start("social"); if (r && r.refused) toast("😮‍💨 " + r.refused, "bad"); }
     else if (act === "equip") G.buyEquipment(key);
@@ -897,6 +1074,16 @@ WB.UI = (function () {
     study:   ["📚", "Studying", "brain gains in progress"],
     rest:    ["😴", "Sleeping", "snoring at championship level"],
     grass:   ["🌱", "Touching Grass", "outside??? character growth"],
+    workout: ["🏋️", "Working Out", "getting swole in the yard"],
+    yard:    ["🌳", "Yard Time", "pacing the perimeter, plotting"],
+    poop:    ["💩", "On the Toilet", "very important business"],
+  };
+  // what the jail-bound entrepreneur is doing right now (by focus)
+  const JAIL_STATUS = {
+    workout: ["🏋️", "Prison Workout", "push-ups, pull-ups, protein loaf"],
+    yard:    ["🌳", "Yard Time", "walking the yard, making 'connections'"],
+    study:   ["📚", "Jailhouse Law", "reading law books, filing appeals"],
+    rest:    ["😴", "Doing Time", "staring at the bunk above"],
   };
   function moodFace(r) {
     const m = (r.happiness + r.motivation) / 2 - r.stress * 0.35 - (r.hygiene != null && r.hygiene < 30 ? 14 : 0);
@@ -933,9 +1120,10 @@ WB.UI = (function () {
     if (inCut) return; // cutscene owns the screen; keep last status text
     if (jailed) {
       const c = WB.CRIME.crimeState();
-      $("status-icon").textContent = "🚔";
-      $("status-label").textContent = WB.t("In Prison");
-      $("status-sub").textContent = WB.fmtTime(WB.CRIME.prisonLeft() / 1000) + " " + WB.t("left") + " · " + (c.prisonReason || "");
+      const [ji, jl, js2] = JAIL_STATUS[st.focus] || ["🚔", "Doing Time", c.prisonReason || "thinking about choices"];
+      $("status-icon").textContent = ji;
+      $("status-label").textContent = WB.t(jl);
+      $("status-sub").textContent = WB.fmtTime(WB.CRIME.prisonLeft() / 1000) + " " + WB.t("left") + " · " + WB.t(js2);
       $("housing-name").textContent = "🔒 " + WB.t("County Jail · Cell") + " " + cellNumber();
       return;
     }
@@ -984,23 +1172,26 @@ WB.UI = (function () {
     const goal = D.GOALS[st.goalIndex];
     $("goal-text").textContent = goal ? WB.t(goal.text) : WB.t("All goals complete. You are the goal now.");
 
-    // Project
+    // Project (hidden during cutscenes & in jail — no "building a SaaS" bar on the way to prison)
     const p = st.project;
     const pb = $("project-box");
-    if (p) {
+    const cutOrJail = (WB.ROOM.cutActive && WB.ROOM.cutActive()) || (WB.CRIME && WB.CRIME.inPrison());
+    if (p && !cutOrJail) {
       pb.style.display = "";
       $("project-name").textContent = p.name;
       $("project-fill").style.width = Math.min(100, p.progress / p.required * 100) + "%";
     } else pb.style.display = "none";
 
-    // Activity buttons
+    // Activity buttons — swap the whole bar between free/jail sets when jail state flips
+    const jailedNow = !!(WB.CRIME && WB.CRIME.inPrison());
+    if (jailedNow !== lastActBarJailed) { lastActBarJailed = jailedNow; buildActivities(jailedNow); }
     document.querySelectorAll("#activities .act-btn").forEach(b => {
       const f = b.dataset.focus;
       b.classList.toggle("active", st.focus === f);
       const a = D.ACTIVITIES[f];
       const locked = a.reqEra && st.era < a.reqEra;
       b.classList.toggle("locked", !!locked);
-      b.title = locked ? `Unlocks in ${D.ERAS[a.reqEra].year}` : a.name;
+      b.title = locked ? `Unlocks in ${D.ERAS[a.reqEra].year}` : WB.t(a.name);
     });
 
     $("hustle-val").textContent = "+" + WB.fmt(G.clickValue(), true);
@@ -1232,6 +1423,21 @@ WB.UI = (function () {
     setTimeout(() => el.remove(), 1100);
   }
 
+  // ---------- 💩 The poop decision ----------
+  function poopPopup() {
+    if (uiBusy()) { setTimeout(poopPopup, 2500); return; } // never stack on another modal
+    openModal(`
+      <div class="ev-icon">💩</div>
+      <h2>${WB.t("You need to poop!")}</h2>
+      <p>${WB.t("Nature is calling. Loudly. Urgently. This is a board-level emergency.")}</p>
+      <div class="ev-choices">
+        <button class="btn choice" id="poop-go"><b>🚽 ${WB.t("Go to the toilet")}</b><small>${WB.t("Pause the grind. Keep your dignity.")}</small></button>
+        <button class="btn choice" id="poop-no"><b>🙈 ${WB.t("I don't care")}</b><small>${WB.t("The deadline matters more than the chair.")}</small></button>
+      </div>`);
+    $("poop-go").onclick = () => { closeModal(); WB.GAME.goPoop(); };
+    $("poop-no").onclick = () => { closeModal(); WB.GAME.poopSelf(); };
+  }
+
   // ---------- Autoclicker easter egg ----------
   function showAutoclickerEgg() {
     openModal(`<div class="ev-icon">🤖</div><h2>${WB.t("Hold up.")}</h2>
@@ -1259,9 +1465,7 @@ WB.UI = (function () {
 
   // ============================================================ Boot
   function boot() {
-    // Activities
-    $("activities").innerHTML = Object.entries(D.ACTIVITIES).map(([key, a]) =>
-      `<button class="act-btn" data-focus="${key}"><span>${a.icon}</span><small>${WB.t(a.name)}</small></button>`).join("");
+    // Activities click handler (the bar itself is built after state loads, below)
     $("activities").addEventListener("click", e => {
       const b = e.target.closest(".act-btn");
       if (b && !b.classList.contains("locked")) { WB.GAME.setFocus(b.dataset.focus); renderHud(); }
@@ -1324,10 +1528,11 @@ WB.UI = (function () {
       toggleActPanel(b.dataset.cat, b);
     });
 
-    const hooks = { toast, bubble, showEventModal, offerPerks, notifyAchievement, confetti, roomDirty: () => {}, modalOpen: uiBusy };
+    const hooks = { toast, bubble, showEventModal, offerPerks, notifyAchievement, confetti, roomDirty: () => {}, modalOpen: uiBusy, poopPopup };
     initTheme();
     const res = WB.GAME.init(hooks);
     st = res.state;
+    buildActivities(!!(WB.CRIME && WB.CRIME.inPrison())); // now that state exists
     WB.ROOM.init($("room-canvas"), () => st);
     renderTabBar();
     renderHud();
@@ -1338,7 +1543,12 @@ WB.UI = (function () {
       if (pending.length === 3) offerPerks(pending);
       else st.perkOffer = null;
     }
-    maybeStartTutorial();
+    // first ever launch → onboarding (name / language / theme), then the tutorial
+    let onboarded = true;
+    try { onboarded = !!localStorage.getItem("wb_onboarded"); } catch (e) {}
+    if (!onboarded) showOnboarding(() => maybeStartTutorial());
+    else maybeStartTutorial();
+
     if (res.offline) showOffline(res.offline);
     else bubble(st.stats.playTimeSec < 5
       ? "Okay. New plan. I'm going to get rich on the internet. From this bedroom. With this WiFi."
@@ -1348,6 +1558,16 @@ WB.UI = (function () {
     setInterval(renderHud, 200);
     setInterval(bubbleTrack, 120); // thought bubble follows him around the room
     setInterval(() => renderTab(false), 600);
+
+    // cloud sync: heartbeat presence + push your score for the global leaderboard
+    const cloudSync = () => {
+      if (WB.CLOUD && WB.CLOUD.enabled) {
+        WB.CLOUD.heartbeat(playerName());
+        WB.CLOUD.submitScore({ name: playerName(), netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
+      }
+    };
+    window.addEventListener("wb-cloud-ready", () => setTimeout(cloudSync, 1500));
+    setInterval(cloudSync, 60000);
   }
 
   document.addEventListener("DOMContentLoaded", boot);

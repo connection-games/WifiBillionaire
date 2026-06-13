@@ -103,9 +103,12 @@ WB.DATA = (function () {
     crypto:  { name: "Trade Crypto",   icon: "🪙", skill: "trading", career: "crypto",     work: true },
     ai:      { name: "Build AI",       icon: "🤖", skill: "ai",      career: "ai",         work: true, reqEra: 2 },
     gamedev: { name: "Make Games",     icon: "🕹️", skill: "gamedev", career: "gamedev",    work: true },
-    study:   { name: "Study",          icon: "📚", skill: null,      career: null,         work: true },
-    rest:    { name: "Sleep",          icon: "😴", work: false },
+    study:   { name: "Study",          icon: "📚", skill: null,      career: null,         work: true, jail: true },
+    rest:    { name: "Sleep",          icon: "😴", work: false, jail: true },
     grass:   { name: "Touch Grass",    icon: "🌱", work: false },
+    // jail-only focuses (shown on the activity bar while incarcerated)
+    workout: { name: "Work Out",       icon: "🏋️", skill: null,      career: null,         work: false, jailOnly: true },
+    yard:    { name: "Yard Time",       icon: "🌳", skill: null,      career: null,         work: false, jailOnly: true },
   };
 
   // ---------- Eras ----------
@@ -196,11 +199,42 @@ WB.DATA = (function () {
     { id: "g20", text: "Reach the Space-Tech Era",      check: s => s.era >= 4 },
   ];
 
-  return { HOUSING, EQUIPMENT, CAREERS, SKILLS, ACTIVITIES, ERAS, TRAITS, PERKS, PRESTIGE_UPGRADES, GOALS };
+  // ---------- Challenges (claimable, with rewards) ----------
+  // prog(s) → current value; goal → target. reward: money(minutes of income) |
+  // boost {mult, sec} | legacy(points) | followers(n). tier drives the card colour.
+  const crimeStat = (s, k) => (s.crime && s.crime[k]) || 0;
+  const CHALLENGES = [
+    { id: "c_clicks",  icon: "💪", tier: "bronze", name: "Smash That Button", desc: "Hit HUSTLE 500 times.",
+      goal: 500, prog: s => s.stats.totalClicks, reward: { money: 8 }, rewardText: "💰 8 min of income" },
+    { id: "c_ship",    icon: "🚀", tier: "bronze", name: "Ship It", desc: "Ship 5 projects.",
+      goal: 5, prog: s => s.stats.projectsShipped, reward: { money: 10 }, rewardText: "💰 10 min of income" },
+    { id: "c_rested",  icon: "😴", tier: "bronze", name: "Sleep Is For The Strong", desc: "Sleep 30 times.",
+      goal: 30, prog: s => s.stats.sleepSessions, reward: { money: 8 }, rewardText: "💰 8 min of income" },
+    { id: "c_grass",   icon: "🌱", tier: "bronze", name: "Touch Grass", desc: "Go outside 25 times.",
+      goal: 25, prog: s => s.stats.grassTouched, reward: { boost: { mult: 1.5, sec: 120 } }, rewardText: "🔥 ×1.5 income · 2 min" },
+    { id: "c_crypto",  icon: "🪙", tier: "silver", name: "Diamond Hands", desc: "Make 20 crypto trades.",
+      goal: 20, prog: s => s.stats.cryptoTrades, reward: { money: 12 }, rewardText: "💰 12 min of income" },
+    { id: "c_crime",   icon: "🦹", tier: "silver", name: "Career Criminal", desc: "Pull off 10 crimes.",
+      goal: 10, prog: s => crimeStat(s, "crimesDone") + crimeStat(s, "scamSuccess"), reward: { money: 14 }, rewardText: "💰 14 min of income" },
+    { id: "c_poop",    icon: "💩", tier: "silver", name: "Rock Bottom", desc: "Poop yourself 3 times. (Why.)",
+      goal: 3, prog: s => s.stats.poopAccidents || 0, reward: { money: 6 }, rewardText: "💰 6 min of income (hush money)" },
+    { id: "c_viral",   icon: "📱", tier: "silver", name: "Going Viral", desc: "Land 3 viral hits.",
+      goal: 3, prog: s => s.stats.viralProjects, reward: { followers: 1000 }, rewardText: "📈 +1,000 followers" },
+    { id: "c_brain",   icon: "🧠", tier: "gold", name: "Galaxy Brain", desc: "Reach Intelligence 50.",
+      goal: 50, prog: s => Math.floor(s.res.intelligence), reward: { boost: { mult: 2, sec: 180 } }, rewardText: "🔥 ×2 income · 3 min" },
+    { id: "c_mill",    icon: "💰", tier: "gold", name: "Millionaire Mindset", desc: "Reach $1M net worth.",
+      goal: 1e6, prog: () => WB.GAME.netWorth(), reward: { legacy: 1 }, rewardText: "♻️ +1 Legacy Point" },
+    { id: "c_era",     icon: "🌍", tier: "gold", name: "Time Traveler", desc: "Reach the AI Era.",
+      goal: 2, prog: s => s.era, reward: { money: 15 }, rewardText: "💰 15 min of income" },
+    { id: "c_billion", icon: "🐋", tier: "gold", name: "Whale Alert", desc: "Earn $1B all-time.",
+      goal: 1e9, prog: s => s.allTimeEarnings, reward: { legacy: 2 }, rewardText: "♻️ +2 Legacy Points" },
+  ];
+
+  return { HOUSING, EQUIPMENT, CAREERS, SKILLS, ACTIVITIES, ERAS, TRAITS, PERKS, PRESTIGE_UPGRADES, GOALS, CHALLENGES };
 })();
 
 // ---------- Build version (keep in sync with package.json) ----------
-WB.VERSION = "6.2.2";
+WB.VERSION = "6.3.0";
 
 // ---------- Number formatting ----------
 WB.fmt = function (n, money) {

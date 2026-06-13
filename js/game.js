@@ -33,7 +33,7 @@ WB.GAME = (function () {
     return {
       money: 0, lifetimeEarnings: 0,
       runStartedAt: Date.now(),
-      res: { energy: 100, happiness: 60, reputation: 0, motivation: 75, intelligence: 10, luck: 5, ego: 0, stress: 0, hygiene: 70 },
+      res: { energy: 100, happiness: 60, reputation: 0, motivation: 75, intelligence: 10, luck: 5, ego: 0, stress: 0, hygiene: 70, bowels: 0, dirt: 0 },
       skills: defaultSkills(),
       equipment: defaultEquipment(),
       careers: defaultCareers(),
@@ -71,6 +71,7 @@ WB.GAME = (function () {
     };
     st.tutorialDone = false;
     st.empire = { unlocked: 0, ventures: {} }; // secret endgame — survives prestige
+    st.challengesClaimed = {};                 // claimed challenge ids — survives prestige
     st.lastSaved = Date.now();
     return st;
   }
@@ -161,7 +162,9 @@ WB.GAME = (function () {
     if (s.focus === "rest") inc *= hasPerk("automation") ? 0.5 : 0.35;
     if (s.focus === "grass" || s.focus === "study") inc *= 0.6;
     if (s.res.hygiene != null && s.res.hygiene < 30) inc *= 0.85; // nobody buys from the smelly guy
+    if (s.res.dirt != null && s.res.dirt > 55) inc *= 0.9;        // hard to focus in filth
     if (s.bathroom) inc *= 0.6;
+    if (s.cleaning && Date.now() < s.cleaning.until) inc *= 0.5;  // away from the desk, scrubbing
     return inc;
   }
   function earn(amount) {
@@ -517,6 +520,33 @@ WB.GAME = (function () {
     return v;
   }
 
+  // ---------- 💩 Poop + 🧹 cleaning ----------
+  function goPoop() {                         // chose the toilet — he walks there (room.js animates)
+    s.poopPending = false;
+    s.bathroom = { until: Date.now() + 9000, poop: true };
+    s.res.bowels = 0;
+    UI.bubble(WB.pick(["Crisis averted. Dignity: intact.", "Made it. Barely. A hero's journey.", "A wise founder always chooses the toilet."]));
+  }
+  function poopSelf() {                       // chose chaos — consequences in the chair
+    s.poopPending = false;
+    s.res.bowels = 0;
+    s.res.dirt = Math.min(100, (s.res.dirt || 0) + 45);
+    s.res.hygiene = Math.max(0, s.res.hygiene - 35);
+    s.res.stress = Math.min(100, s.res.stress + 15);
+    s.res.happiness = Math.max(0, s.res.happiness - 12);
+    s.stats.poopAccidents = (s.stats.poopAccidents || 0) + 1;
+    UI.toast("💩 You pooped yourself in the chair. The chair has filed a complaint.", "bad");
+    UI.bubble(WB.pick(["...we do not speak of this.", "The chair is now a crime scene.", "I had a DEADLINE, okay?!", "This is fine. This is fine. This is NOT fine."]));
+  }
+  function clean() {                          // 🧹 reset dirt; room.js shows him scrubbing
+    s.cleaning = { until: Date.now() + 7000 };
+    const wasDirty = s.res.dirt || 0;
+    s.res.dirt = 0;
+    s.res.hygiene = Math.min(100, s.res.hygiene + 8);
+    s.res.happiness = Math.min(100, s.res.happiness + 5);
+    return wasDirty;
+  }
+
   // ---------- Prestige ----------
   const PRESTIGE_REQ = 1e9;
   const legacyGain = () => netWorth() >= PRESTIGE_REQ ? Math.floor(10 * Math.sqrt(netWorth() / PRESTIGE_REQ)) : 0;
@@ -529,6 +559,7 @@ WB.GAME = (function () {
       version: s.version, allTimeEarnings: s.allTimeEarnings, era: s.era,
       achievements: s.achievements, prestige: s.prestige, stats: s.stats, lastSaved: s.lastSaved,
       empire: s.empire, // you don't un-buy the Moon
+      challengesClaimed: s.challengesClaimed, tutorialDone: s.tutorialDone,
     };
     const run = freshRun();
     Object.assign(s, run, keep);
@@ -599,6 +630,21 @@ WB.GAME = (function () {
       UI.bubble(WB.pick(["I can smell myself. That's a new low.", "The hoodie has reached sentience. It disagrees with me.", "Deodorant is for people with funding."]));
     } else if (r.hygiene > 55) s.stinkWarned = 0;
 
+    // 💩 Bowels: fill over time; at the top, the player must choose toilet or chaos.
+    if (r.bowels == null) r.bowels = 0;
+    if (r.dirt == null) r.dirt = 0;
+    if (!s.bathroom && !inPrison()) r.bowels = Math.min(100, r.bowels + (a && a.work ? 0.05 : 0.035) * dt);
+    if (r.bowels >= 100 && !s.poopPending && !s.bathroom && !inPrison() && !UI.modalOpen()) {
+      s.poopPending = true;
+      UI.poopPopup && UI.poopPopup();
+    }
+    // 🧹 Dirt: a grimy desk creeps up if you never clean (and explodes if you poop yourself)
+    r.dirt = Math.min(100, r.dirt + 0.018 * dt);
+    if (r.dirt >= 70 && !s.dirtWarned) {
+      s.dirtWarned = 1;
+      UI.bubble(WB.pick(["This desk has its own ecosystem now.", "Is that... mold? That's mold.", "I should clean. I won't, but I should."]));
+    } else if (r.dirt < 35) s.dirtWarned = 0;
+
     // Income
     earn(incomePerSec() * dt);
 
@@ -627,6 +673,14 @@ WB.GAME = (function () {
       r.happiness = Math.min(100, r.happiness + 0.15 * g * dt);
       r.stress = Math.max(0, r.stress - 0.5 * g * dt);
       tp.grassSec += dt;
+    } else if (s.focus === "workout") {           // jail gym: tiring but burns stress, builds discipline
+      r.energy = Math.max(0, r.energy - 0.18 * dt);
+      r.stress = Math.max(0, r.stress - 0.3 * dt);
+      r.intelligence += 0.012 * dt;               // discipline reads as focus
+    } else if (s.focus === "yard") {              // yard time: light rest, big stress relief
+      r.energy = Math.min(100, r.energy + 0.25 * dt);
+      r.stress = Math.max(0, r.stress - 0.45 * dt);
+      r.happiness = Math.min(100, r.happiness + 0.08 * dt);
     }
 
     // Drift toward baselines
@@ -809,6 +863,7 @@ WB.GAME = (function () {
     choosePerk, resolveMajorChoice, applyEffect, onCooldown,
     xpForLevel, charLevel, luck, earn, gainXp, inPrison,
     PRESTIGE_REQ, legacyGain, doPrestige, prestigeUpgradeCost, buyPrestigeUpgrade,
+    goPoop, poopSelf, clean,
     exportSave, importSave, hardReset,
   };
 })();

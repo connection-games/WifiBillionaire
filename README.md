@@ -157,6 +157,27 @@ dir, never committed, never hardcoded — `js/secrets.js` ships empty). With no 
 Scam Sim gracefully uses offline scripted victims. In the desktop app the key is sent
 straight from the renderer to the main process to OpenAI (no CORS, key never leaves your machine).
 
+### Global leaderboard (Firebase) — one-time setup
+The leaderboard + live-player count (`js/cloud.js`) run on Firebase. The web config in
+that file is **public client config** (it only identifies the project — Firebase security
+is enforced by rules, not by hiding this value, so it's safe to ship). To take the
+leaderboard live, in the [Firebase console](https://console.firebase.google.com/) for
+`wifibillionare-1acf6`:
+1. **Build → Firestore Database → Create database** (production mode is fine).
+2. **Build → Authentication → Sign-in method → enable Anonymous.**
+3. **Firestore → Rules**, paste:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{db}/documents {
+       match /scores/{uid}   { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
+       match /presence/{uid} { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
+     }
+   }
+   ```
+Until those three steps are done the game runs fine — the leaderboard simply shows
+"offline" (it degrades gracefully and never blocks play).
+
 > Legacy note: `app/main.swift` + `build.sh` (native Mac WKWebView shell) and
 > `build-win.sh` (manual Electron zip) are superseded by the electron-builder
 > pipeline above and kept only for reference.

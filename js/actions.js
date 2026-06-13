@@ -527,6 +527,20 @@ WB.ACTIONS = (function () {
         return { icon: "🧘", title: "Inner peace report", lines, money: 0 };
       },
     },
+    cleanUp: {
+      name: "Clean Up", icon: "🧹", cat: "life", dur: 8, cd: 50, energy: 4,
+      avail: () => true,
+      desc: "Get off the chair and scrub the desk — resets built-up dirt.",
+      onStart() { WB.UI.bubble(WB.pick(["Marie Kondo mode: activated.", "Cleaning the battlestation. And the... incident.", "Where is the disinfectant. WHERE."])); },
+      resolve(s) {
+        const wasDirty = WB.GAME.clean(); // resets dirt, +hygiene, sets the cleaning animation
+        const lines = wasDirty > 60
+          ? ["Hazmat-level cleanup complete.", "You found things down there. You have questions. No answers."]
+          : ["Desk scrubbed, chair de-crumbed, air freshened.", "A clean space, a clean mind, a clean conscience (mostly)."];
+        return { icon: "🧹", title: "Spotless… for now", lines, money: 0 };
+      },
+    },
+
     takeout: {
       name: "Order Takeout", icon: "🍜", cat: "life", dur: 0, cd: 240, energy: 0,
       avail: () => true, instant: true,

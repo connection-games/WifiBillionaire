@@ -5,9 +5,25 @@
      and errors to the renderer for a friendly in-app banner. */
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Use Electron's Chromium network stack (net.fetch) for update checks/downloads.
+// Node's global fetch in the main process can fail on GitHub's redirect chain,
+// corporate proxies, or certain TLS setups — which is what produced the
+// "couldn't check for updates" boot message. net.fetch follows redirects and
+// uses the system proxy + cert store, so it's far more reliable. Falls back to
+// global fetch if net is somehow unavailable.
+function wbFetch(url, opts = {}) {
+  const timeoutMs = opts.timeoutMs || 20000;
+  const doFetch = (net && net.fetch) ? (u) => net.fetch(u, { cache: 'no-store', redirect: 'follow' })
+                                     : (u) => fetch(u, { cache: 'no-store' });
+  return Promise.race([
+    doFetch(url),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs)),
+  ]);
+}
 
 // userData = OS-standard app data dir:
 //   macOS:   ~/Library/Application Support/WiFi Billionaire
@@ -148,13 +164,27 @@ function cmpVersions(a, b) {
 }
 
 function initMacUpdater(win) {
+  // fetch latest-mac.yml with a few retries (transient network blips shouldn't
+  // surface the scary "couldn't check for updates" message)
+  const fetchManifest = async () => {
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await wbFetch(UPDATE_BASE + 'latest-mac.yml');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.text();
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
+    throw lastErr;
+  };
   const check = async () => {
     if (updating) return;
     try {
       sendStatus(win, { state: 'checking' });
-      const res = await fetch(UPDATE_BASE + 'latest-mac.yml', { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const yml = await res.text();
+      const yml = await fetchManifest();
       const version = (yml.match(/^version:\s*(\S+)/m) || [])[1];
       if (!version || cmpVersions(version, app.getVersion()) <= 0) {
         sendStatus(win, { state: 'none' });
@@ -191,7 +221,7 @@ async function applyMacUpdate(win, version, sha512) {
   fs.mkdirSync(tmp, { recursive: true });
   const zipPath = path.join(tmp, 'update.zip');
 
-  const res = await fetch(UPDATE_BASE + 'WiFi-Billionaire.zip', { cache: 'no-store' });
+  const res = await wbFetch(UPDATE_BASE + 'WiFi-Billionaire.zip', { timeoutMs: 180000 });
   if (!res.ok || !res.body) throw new Error('download failed: HTTP ' + res.status);
   const total = Number(res.headers.get('content-length')) || 0;
   const out = fs.createWriteStream(zipPath);

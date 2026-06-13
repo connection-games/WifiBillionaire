@@ -170,6 +170,8 @@
   <script src="js/game.js"></script>
   <script src="js/room.js"></script>
   <script src="js/ui.js"></script>
+  <!-- Firebase cloud (leaderboard + presence) — ES module, loads after the game -->
+  <script type="module" src="js/cloud.js"></script>
   <script>
     (function () {
       const t = (window.WB && WB.t) || (s => s);

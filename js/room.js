@@ -415,15 +415,65 @@ WB.ROOM = (function () {
   function drawWalker(x, dir, era) {
     const y = FLOOR_Y + 2;
     const step = Math.floor(frame / 3) % 2;
-    px(x - 4 + (step ? 3 : 0), y + 22, 3, 8, "#39414f"); // legs scissor
-    px(x + 2 - (step ? 3 : 0), y + 22, 3, 8, "#39414f");
-    px(x - 4 + (step ? 3 : 0), y + 29, 4, 2, "#222");
-    px(x + 2 - (step ? 3 : 0), y + 29, 4, 2, "#222");
-    px(x - 6, y + 8, 12, 15, ERA_HOODIE[era]);           // body
-    px(x - 8 + (step ? 1 : 0), y + 11, 3, 9, ERA_HOODIE[era]); // swinging arm
-    px(x - 4, y, 9, 8, SKIN);                            // head, profile
-    px(x - 5, y - 3, 11, 5, HAIR);
-    px(x + (dir > 0 ? 3 : -2), y + 2, 2, 2, "#1d1d1f");  // eye toward direction
+    const hood = ERA_HOODIE[era], hoodD = shade(hood);
+    // legs + sneakers (white sole detail)
+    px(x - 4 + (step ? 3 : 0), y + 22, 3, 7, "#39414f"); // jeans
+    px(x + 2 - (step ? 3 : 0), y + 22, 3, 7, "#39414f");
+    px(x - 5 + (step ? 3 : 0), y + 29, 5, 2, "#2a2d33"); // sneaker
+    px(x + 1 - (step ? 3 : 0), y + 29, 5, 2, "#2a2d33");
+    px(x - 5 + (step ? 3 : 0), y + 30, 5, 1, "#e6e8ee"); // white sole
+    px(x + 1 - (step ? 3 : 0), y + 30, 5, 1, "#e6e8ee");
+    // hoodie body + pocket + drawstrings
+    px(x - 6, y + 8, 12, 15, hood);
+    px(x - 6, y + 8, 12, 2, hoodD);                      // shoulder seam
+    px(x - 4, y + 15, 8, 4, hoodD);                      // kangaroo pocket
+    px(x - 2, y + 8, 1, 4, "#e8e2d4"); px(x + 1, y + 8, 1, 4, "#e8e2d4"); // drawstrings
+    px(x - 8 + (step ? 1 : 0), y + 11, 3, 9, hood);      // swinging arm
+    px(x - 8 + (step ? 1 : 0), y + 19, 3, 2, SKIN);      // hand
+    // head, side profile with face detail
+    px(x - 4, y, 9, 8, SKIN);
+    px(x - 5, y - 3, 11, 6, HAIR);                       // hair cap
+    px(x - 5, y + 1, 2, 4, HAIR);                        // sideburn
+    const fx = dir > 0 ? 3 : -3;
+    px(x + fx, y + 1, 2, 2, "#1d1d1f");                  // eye
+    px(x + fx, y - 1, 2, 1, HAIR);                       // eyebrow
+    px(x + fx + (dir > 0 ? 2 : -1), y + 3, 1, 2, SKIN_D); // nose tip
+    px(x + fx + (dir > 0 ? 1 : 0), y + 6, 2, 1, "#b9745f"); // mouth
+  }
+  // 🧹 cleaning pose: standing, sweeping a broom, sparkles flying
+  function drawCleaner(x, era) {
+    const y = FLOOR_Y + 2;
+    const sway = Math.floor(frame / 4) % 2;
+    const hood = ERA_HOODIE[era];
+    px(x - 3, y + 22, 3, 7, "#39414f"); px(x + 1, y + 22, 3, 7, "#39414f"); // legs
+    px(x - 4, y + 29, 5, 2, "#2a2d33"); px(x + 1, y + 29, 5, 2, "#2a2d33"); // shoes
+    px(x - 6, y + 8, 12, 15, hood);                      // body
+    px(x - 4, y, 9, 8, SKIN); px(x - 5, y - 3, 11, 5, HAIR);   // head
+    px(x + 3, y + 2, 2, 2, "#1d1d1f");                   // eye
+    // broom, swinging
+    const bx = x + 8 + sway * 3;
+    px(bx, y + 4, 2, 22, "#a8723a");                     // handle
+    px(bx - 3, y + 24, 8, 4, "#e8c24a");                 // bristles
+    for (let i = 0; i < 4; i++) px(bx - 3 + i * 2, y + 28, 1, 3, "#caa54a");
+    // sparkles
+    if (frame % 6 < 3) { px(bx + 6, y + 18, 2, 2, "#fff3c4"); px(bx + 2, y + 12, 1, 1, "#fff"); }
+    px(x - 9, y + 12, 3, 8, hood); px(x - 9, y + 19, 3, 2, SKIN); // free arm
+  }
+  // accumulated grime: stains, flies, a questionable puddle — scales with dirt 0..100
+  function drawDirt(level, deskCx) {
+    if (level < 20) return;
+    const n = Math.floor(level / 18);
+    const r = srand(7);
+    for (let i = 0; i < n; i++) {
+      const sx = 60 + Math.floor(r() * 200), sy = FLOOR_Y + 10 + Math.floor(r() * 40);
+      px(sx, sy, 5, 3, "rgba(90,70,40,0.5)");            // grime smear
+      px(sx + 1, sy - 1, 2, 1, "rgba(70,55,30,0.5)");
+    }
+    if (level > 55) { // a fly buzzes a lazy loop over the mess
+      const fa = (frame * 0.12) % (Math.PI * 2);
+      px(deskCx + Math.cos(fa) * 22, FLOOR_Y - 8 + Math.sin(fa * 2) * 6, 1, 1, "#1a1a1a");
+    }
+    if (level > 80) { px(deskCx - 36, FLOOR_Y + 40, 10, 4, "rgba(110,80,40,0.55)"); } // a puddle. unexplained.
   }
   function drawStink(x, yTop) {
     for (let i = 0; i < 3; i++) {
@@ -1259,23 +1309,30 @@ WB.ROOM = (function () {
     const desk = drawDesk(eq);
     const deskCx = desk.dx + desk.dw / 2;
 
-    // where should he be? (bathroom > bed > window > desk) — and walk there
-    const target = s.bathroom ? 22 : state === "rest" ? 60 : state === "grass" ? 56 : deskCx;
+    // accumulated grime on the floor (behind the character)
+    if (s.res && s.res.dirt) drawDirt(s.res.dirt, deskCx);
+
+    // where should he be? (bathroom > cleaning > bed > window > desk) — and walk there
+    const cleaning = s.cleaning && Date.now() < s.cleaning.until;
+    const target = s.bathroom ? 22 : cleaning ? 96 : state === "rest" ? 60 : state === "grass" ? 56 : deskCx;
     const moving = Math.abs(pos - target) > 4;
     // the bed is permanent furniture; the sleeper variant is drawn while he's in it
-    if (!(state === "rest" && !moving && !s.bathroom)) drawBed(s.era, false);
+    if (!(state === "rest" && !moving && !s.bathroom && !cleaning)) drawBed(s.era, false);
     if (moving) {
       facing = target > pos ? 1 : -1;
       pos += facing * 3.4;
     } else pos = target;
 
-    drawScreens(eq, desk, moving || s.bathroom ? "rest" : state, s.focus);
+    drawScreens(eq, desk, moving || s.bathroom || cleaning ? "rest" : state, s.focus);
     if (moving) {
       drawChairAndCharacter(eq, desk, "away", s.era);
       drawWalker(pos, facing, s.era);
     } else if (s.bathroom) {
       drawChairAndCharacter(eq, desk, "away", s.era);
       drawToiletUse(s.era);
+    } else if (cleaning) {
+      drawChairAndCharacter(eq, desk, "away", s.era);
+      drawCleaner(pos, s.era);
     } else {
       drawChairAndCharacter(eq, desk, state, s.era); // in front: we see their back against the glow
       if (state === "work") {
