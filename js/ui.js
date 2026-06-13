@@ -125,7 +125,7 @@ WB.UI = (function () {
     const s = $("scam-app");
     return !!(s && s.classList.contains("open"));
   }
-  function uiBusy() { return modalIsOpen || scamOpen(); }
+  function uiBusy() { return modalIsOpen || scamOpen() || tutStep >= 0; }
   function openModal(html) {
     modalIsOpen = true;
     $("modal-content").innerHTML = html;
@@ -179,6 +179,17 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.4 — The Online Update", items: [
+      "👥 NEW: real friends! Add players by username, accept requests, and chat in real-time.",
+      "🤝 NEW: send money to a friend, or ⚖️ bail them out of jail — it lands in their wallet instantly.",
+      "🧑‍💼 NEW: your username now sits top-right — tap it for your Profile (friends, chats, skills, awards, stats).",
+      "🏆 Leaderboard is now manual-refresh only (saves data) and shows who's online.",
+      "💼 Your current career level shows on the character panel.",
+      "⭐ A friendly 'enjoying the game?' check-in — Yes stars us on GitHub, No opens a quick survey.",
+      "🎓 Finish the tutorial → get $1,000. And no popups interrupt the tutorial anymore.",
+      "✨ Cleaner top bar, prettier progress bars, more inner-monologue thoughts, and a fuller Swedish translation.",
+      "🔧 Updater made more reliable.",
+    ]},
     { v: "v6.3 — Online & Alive", items: [
       "🏆 NEW: global leaderboard + live player count, powered by the cloud — climb the ranks by net worth.",
       "👋 NEW: first-launch onboarding — pick your username, language and theme before you start.",
@@ -341,6 +352,49 @@ WB.UI = (function () {
     $("wn-done").onclick = closeModal;
   }
 
+  // ---------- ⭐ "Do you like the game?" ----------
+  const REPO_URL = "https://github.com/connection-games/WifiBillionare";
+  function openExternal(url) { try { window.open(url, "_blank", "noopener"); } catch (e) {} }
+  function showLikePrompt() {
+    openModal(`
+      <div class="ev-icon">⭐</div>
+      <h2>${WB.t("Enjoying WiFi Billionaire?")}</h2>
+      <p class="muted">${WB.t("Your honest take genuinely helps.")}</p>
+      <div class="ev-choices">
+        <button class="btn choice" id="like-yes"><b>😄 ${WB.t("Yes, love it!")}</b><small>${WB.t("Give it a ⭐ on GitHub")}</small></button>
+        <button class="btn choice" id="like-no"><b>😐 ${WB.t("Not really")}</b><small>${WB.t("Tell us what to fix")}</small></button>
+      </div>`);
+    $("like-yes").onclick = () => { closeModal(); openExternal(REPO_URL); toast(WB.t("⭐ Thank you! A star means the world."), "good"); };
+    $("like-no").onclick = () => { closeModal(); showSurvey(); };
+  }
+  function showSurvey() {
+    const opts = ["Too grindy", "Confusing UI", "Not enough content", "Bugs / glitches", "Gets boring", "Performance / lag"];
+    openModal(`
+      <div class="ev-icon">📝</div>
+      <h2>${WB.t("What's not clicking?")}</h2>
+      <p class="muted">${WB.t("Pick anything that applies — it's anonymous.")}</p>
+      <div class="survey-opts">${opts.map(o => `<label class="survey-opt"><input type="checkbox" value="${o}"> ${WB.t(o)}</label>`).join("")}</div>
+      <textarea id="survey-text" class="set-input" placeholder="${WB.t("Anything else? (optional)")}" style="min-height:64px"></textarea>
+      <button class="btn primary wide" id="survey-send" style="margin-top:10px">${WB.t("Send feedback")}</button>`);
+    $("survey-send").onclick = () => {
+      const picked = [...document.querySelectorAll(".survey-opt input:checked")].map(c => c.value);
+      const text = ($("survey-text").value || "").trim();
+      try { localStorage.setItem("wb_feedback", JSON.stringify({ picked, text, ts: Date.now() })); } catch (e) {}
+      if (WB.CLOUD && WB.CLOUD.submitFeedback) WB.CLOUD.submitFeedback(picked, text);
+      closeModal();
+      toast(WB.t("🙏 Thank you — we read every one."), "good");
+    };
+  }
+  // ask once, after the player has settled in (not during tutorial/onboarding)
+  function maybeAskLike() {
+    let asked = false;
+    try { asked = !!localStorage.getItem("wb_liked_asked"); } catch (e) {}
+    if (asked || tutStep >= 0 || uiBusy()) return;
+    if (st.stats.playTimeSec < 180 || st.allTimeEarnings < 5000) return;
+    try { localStorage.setItem("wb_liked_asked", "1"); } catch (e) {}
+    showLikePrompt();
+  }
+
   function showSettings() {
     const tabs = { general: "⚙️ General", ai: "🤖 AI", data: "💾 Data", updates: "✨ Updates", about: "ℹ️ About" };
     openModal(`<h2>Settings</h2>
@@ -389,7 +443,7 @@ WB.UI = (function () {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function showTutStep(i) {
     tutStep = i;
-    if (i >= TUT_STEPS.length) return endTutorial();
+    if (i >= TUT_STEPS.length) return endTutorial(true);
     const s2 = TUT_STEPS[i];
     let spot = $("tut-spot"), card = $("tut-box");
     if (!spot) { spot = document.createElement("div"); spot.id = "tut-spot"; document.body.appendChild(spot); }
@@ -449,12 +503,17 @@ WB.UI = (function () {
     card.classList.remove("tutpop"); void card.offsetWidth; card.classList.add("tutpop");
 
     $("tut-next").onclick = () => showTutStep(i + 1);
-    $("tut-skip").onclick = endTutorial;
+    $("tut-skip").onclick = () => endTutorial(false);
   }
-  function endTutorial() {
+  function endTutorial(completed) {
     ["tut-spot", "tut-box"].forEach(id => { const e = $(id); if (e) e.remove(); });
     tutStep = -1;
     st.tutorialDone = true;
+    if (completed && !st.tutorialRewarded) {        // reward finishing the tutorial
+      st.tutorialRewarded = 1;
+      WB.GAME.earn(1000);
+      setTimeout(() => { toast("🎓 Tutorial complete — here's $1,000 to get you started!", "goal"); confetti(); }, 300);
+    }
     WB.GAME.save();
   }
   function maybeStartTutorial() {
@@ -572,7 +631,7 @@ WB.UI = (function () {
   function setSetting(k, v) { try { localStorage.setItem("wb_set_" + k, v ? "1" : "0"); } catch (e) {} }
 
   // ============================================================ Tabs (consolidated)
-  const TABS = { shop: "🛒 Shop", careers: "💼 Careers", crime: "🦹 Crime", challenges: "🎯 Challenges", profile: "🧠 Profile", prestige: "♻️ Prestige" };
+  const TABS = { shop: "🛒 Shop", careers: "💼 Careers", crime: "🦹 Crime", challenges: "🎯 Challenges", prestige: "♻️ Prestige" };
   const SUBTABS = { shop: ["gear", "assets"], profile: ["skills", "awards", "stats"], challenges: ["list", "leaderboard"] };
   const SUB_LABEL = { gear: "🛠️ Gear & Home", assets: "💎 Assets", skills: "🧠 Skills", awards: "🏆 Awards", stats: "📊 Stats", list: "🎯 Challenges", leaderboard: "🏆 Leaderboard" };
   const sub = { shop: "gear", profile: "skills", challenges: "list" };
@@ -854,6 +913,7 @@ WB.UI = (function () {
 
   // ---------- 🏆 Global leaderboard (Firebase) ----------
   function playerName() { try { return localStorage.getItem("wb_username") || "Anon"; } catch (e) { return "Anon"; } }
+  let lbLoadedOnce = false;
   function tabLeaderboard() {
     const C = WB.CLOUD;
     const online = C && C.enabled ? `🟢 ${C.online} ${WB.t("online now")}` : `⚪ ${WB.t("offline")}`;
@@ -861,8 +921,9 @@ WB.UI = (function () {
       <div class="lb-hero">
         <div class="lb-hero-top"><b>🏆 Global Leaderboard</b><span class="lb-online">${online}</span></div>
         <div class="lb-hero-sub">${WB.t("Ranked by net worth across every player. You compete as")} <b>${esc(playerName())}</b>.</div>
+        <button class="btn small lb-refresh" data-act="lbrefresh">🔄 ${WB.t("Refresh")}</button>
       </div>
-      <div id="lb-body" class="lb-body"><div class="lb-loading">⏳ ${WB.t("Loading the leaderboard…")}</div></div>`;
+      <div id="lb-body" class="lb-body"><div class="lb-loading">${WB.t("Tap Refresh to load the latest rankings.")}</div></div>`;
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
   async function loadLeaderboard() {
@@ -886,6 +947,187 @@ WB.UI = (function () {
         <span class="lb-era">${(WB.DATA.ERAS[r.era] || {}).name ? WB.t(WB.DATA.ERAS[r.era].name) : ""}${r.prestige ? ` · ♻️${r.prestige}` : ""}</span>
         <span class="lb-net">${WB.fmt(r.netWorth, true)}</span>
       </div>`).join("");
+  }
+
+  // ============================================================ 👥 Friends / Profile
+  const social = { friends: [], requests: [], view: "list", chatWith: null, unsubFriends: null, unsubReq: null, unsubInbox: null, unsubChat: null };
+  function socialName() { return playerName(); }
+  function profileOpen() { return modalIsOpen && !!$("profile-body"); }
+
+  // global listeners (run for the whole session): incoming requests + gift inbox
+  function startSocial() {
+    if (!WB.CLOUD) return;
+    WB.CLOUD.ready.then(() => {
+      if (!WB.CLOUD.enabled) return;
+      WB.CLOUD.submitScore({ name: socialName(), netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
+      social.unsubReq = WB.CLOUD.watchRequests(reqs => { social.requests = reqs; updateProfileBadge(); if (profileOpen() && profileTab === "friends" && social.view === "list") renderFriendsView(); });
+      social.unsubInbox = WB.CLOUD.watchInbox(gifts => gifts.forEach(applyGift));
+    });
+  }
+  function applyGift(g) {
+    WB.CLOUD.clearInbox(g.id);
+    const amt = g.amount || 0;
+    if (g.type === "bail" && WB.CRIME && WB.CRIME.inPrison()) {
+      WB.CRIME.crimeState().prisonUntil = 0;
+      WB.GAME.earn(amt);
+      toast(`⚖️ ${g.fromName} ${WB.t("bailed you out of jail!")} (+${WB.fmt(amt, true)})`, "good");
+    } else {
+      WB.GAME.earn(amt);
+      toast(`💸 ${g.fromName} ${WB.t("sent you")} ${WB.fmt(amt, true)}!`, "good");
+    }
+    confetti();
+  }
+  function updateProfileBadge() {
+    const b = $("profile-badge"); if (!b) return;
+    const n = social.requests.length;
+    b.style.display = n ? "" : "none"; b.textContent = n > 9 ? "9+" : n;
+  }
+
+  let profileTab = "friends";
+  function showProfile() {
+    if (uiBusy() && !profileOpen()) { /* allow opening over nothing */ }
+    const tabs = { friends: "👥 Friends", skills: "🧠 Skills", awards: "🏆 Awards", stats: "📊 Stats" };
+    openModal(`
+      <div class="profile-head">
+        <div class="pf-avatar">${WB.CRIME && WB.CRIME.inPrison() ? "🚔" : "🧑‍💻"}</div>
+        <div class="pf-id"><b id="pf-username">${esc(playerName())}</b><span class="muted" id="pf-sub"></span></div>
+        <button class="btn subtle small" id="pf-edit" title="Edit name">✏️</button>
+      </div>
+      <div class="set-tabs">${Object.entries(tabs).map(([k, l]) => `<button class="set-tab ${profileTab === k ? "active" : ""}" data-ptab="${k}">${WB.t(l)}</button>`).join("")}</div>
+      <div id="profile-body"></div>
+      <button class="btn primary wide" id="pf-close" style="margin-top:12px">${WB.t("Close")}</button>`);
+    $("pf-sub").textContent = (WB.CLOUD && WB.CLOUD.enabled ? `🟢 ${WB.t("online")}` : `⚪ ${WB.t("offline")}`) + " · " + WB.fmt(WB.GAME.netWorth(), true);
+    $("modal-content").querySelectorAll("[data-ptab]").forEach(b => b.onclick = () => {
+      profileTab = b.dataset.ptab;
+      $("modal-content").querySelectorAll("[data-ptab]").forEach(x => x.classList.toggle("active", x === b));
+      social.view = "list"; social.chatWith = null;
+      if (social.unsubChat) { social.unsubChat(); social.unsubChat = null; }
+      renderProfileBody();
+    });
+    $("pf-edit").onclick = editUsername;
+    $("pf-close").onclick = () => { stopFriendsWatch(); closeModal(); };
+    renderProfileBody();
+  }
+  function editUsername() {
+    const cur = playerName();
+    const v = prompt(WB.t("Choose a username (shown to friends & on the leaderboard):"), cur);
+    if (v == null) return;
+    const name = v.trim().slice(0, 20) || "Player";
+    try { localStorage.setItem("wb_username", name); } catch (e) {}
+    if (WB.CLOUD && WB.CLOUD.enabled) WB.CLOUD.submitScore({ name, netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
+    if ($("pf-username")) $("pf-username").textContent = name;
+    if ($("profile-name")) $("profile-name").textContent = name;
+  }
+  function renderProfileBody() {
+    const body = $("profile-body"); if (!body) return;
+    if (profileTab === "skills") { body.innerHTML = tabSkills(); WB.I18N.translateDom(body); stopFriendsWatch(); return; }
+    if (profileTab === "awards") { body.innerHTML = tabAchievements(); WB.I18N.translateDom(body); stopFriendsWatch(); return; }
+    if (profileTab === "stats") { body.innerHTML = tabStats(); WB.I18N.translateDom(body); stopFriendsWatch(); return; }
+    // friends
+    if (!WB.CLOUD || !WB.CLOUD.enabled) {
+      stopFriendsWatch();
+      body.innerHTML = `<div class="fr-offline">📡 ${WB.t("Friends are offline.")}<br><span class="muted">${WB.t("Enable Firestore + Anonymous sign-in to play with friends (see README).")}</span></div>`;
+      return;
+    }
+    body.innerHTML = `<div id="friends-view"></div>`;
+    startFriendsWatch();
+    renderFriendsView();
+  }
+  function startFriendsWatch() {
+    if (social.unsubFriends || !WB.CLOUD || !WB.CLOUD.enabled) return;
+    social.unsubFriends = WB.CLOUD.watchFriends(list => {
+      social.friends = list.sort((a, b) => (b.online - a.online) || (b.netWorth || 0) - (a.netWorth || 0));
+      if (profileOpen() && profileTab === "friends" && social.view === "list") renderFriendsView();
+    });
+  }
+  function stopFriendsWatch() {
+    if (social.unsubFriends) { social.unsubFriends(); social.unsubFriends = null; }
+    if (social.unsubChat) { social.unsubChat(); social.unsubChat = null; }
+  }
+  function renderFriendsView() {
+    const v = $("friends-view"); if (!v) return;
+    if (social.view === "chat" && social.chatWith) return renderChat(v, social.chatWith);
+    const reqs = social.requests.map(r => `
+      <div class="fr-req"><span>👋 <b>${esc(r.name)}</b> ${WB.t("wants to be friends")}</span>
+        <span><button class="btn small primary" data-fr="acc" data-uid="${r.uid}" data-name="${esc(r.name)}">${WB.t("Accept")}</button>
+        <button class="btn small subtle" data-fr="dec" data-uid="${r.uid}">${WB.t("Decline")}</button></span></div>`).join("");
+    const friends = social.friends.length ? social.friends.map(f => `
+      <div class="fr-row">
+        <span class="fr-dot ${f.online ? "on" : ""}"></span>
+        <span class="fr-name">${esc(f.name)}</span>
+        <span class="fr-net">${f.netWorth != null ? WB.fmt(f.netWorth, true) : "—"}</span>
+        <span class="fr-actions">
+          <button class="btn tiny" data-fr="chat" data-uid="${f.uid}" data-name="${esc(f.name)}" title="Chat">💬</button>
+          <button class="btn tiny" data-fr="trade" data-uid="${f.uid}" data-name="${esc(f.name)}" title="Send money">🤝</button>
+          <button class="btn tiny" data-fr="bail" data-uid="${f.uid}" data-name="${esc(f.name)}" title="Bail out">⚖️</button>
+        </span></div>`).join("") : `<div class="fr-empty">${WB.t("No friends yet — add someone by their username!")}</div>`;
+    v.innerHTML = `
+      <div class="fr-add">
+        <input id="fr-input" placeholder="${WB.t("Friend's username…")}" maxlength="20" autocomplete="off">
+        <button class="btn primary small" data-fr="add">${WB.t("Add")}</button>
+      </div>
+      ${reqs ? `<div class="fr-section">${WB.t("Requests")}</div>${reqs}` : ""}
+      <div class="fr-section">${WB.t("Friends")} · ${social.friends.filter(f => f.online).length} ${WB.t("online")}</div>
+      <div class="fr-list">${friends}</div>`;
+    v.querySelectorAll("[data-fr]").forEach(b => b.onclick = () => onFriendAction(b.dataset.fr, b.dataset.uid, b.dataset.name));
+    const inp = $("fr-input"); if (inp) inp.onkeydown = e => { if (e.key === "Enter") onFriendAction("add"); };
+  }
+  async function onFriendAction(kind, uid, name) {
+    const C = WB.CLOUD;
+    if (kind === "add") {
+      const nm = ($("fr-input").value || "").trim(); if (!nm) return;
+      const r = await C.sendFriendRequest(nm, socialName());
+      if (r.ok) toast(`📨 ${WB.t("Friend request sent to")} ${esc(r.name)}!`, "good");
+      else toast(r.why === "notfound" ? `🤷 ${WB.t("No player called")} "${esc(nm)}"` : r.why === "self" ? WB.t("That's you!") : WB.t("Couldn't send request."), "bad");
+      if ($("fr-input")) $("fr-input").value = "";
+    } else if (kind === "acc") { await C.acceptFriendRequest(uid, name, socialName()); toast(`🎉 ${esc(name)} ${WB.t("is now your friend!")}`, "good"); }
+    else if (kind === "dec") { await C.declineRequest(uid); }
+    else if (kind === "chat") { social.view = "chat"; social.chatWith = { uid, name }; renderFriendsView(); }
+    else if (kind === "trade") socialAmountDialog("trade", uid, name);
+    else if (kind === "bail") socialAmountDialog("bail", uid, name);
+  }
+  function renderChat(v, friend) {
+    v.innerHTML = `
+      <div class="chat-top"><button class="btn tiny subtle" id="chat-back">‹ ${WB.t("Back")}</button><b>${esc(friend.name)}</b></div>
+      <div class="fr-chat" id="fr-chat"></div>
+      <div class="fr-chat-row"><input id="fr-chat-input" placeholder="${WB.t("Message…")}" maxlength="280" autocomplete="off"><button class="btn primary small" id="fr-chat-send">➤</button></div>`;
+    $("chat-back").onclick = () => { social.view = "list"; social.chatWith = null; if (social.unsubChat) { social.unsubChat(); social.unsubChat = null; } renderFriendsView(); };
+    if (social.unsubChat) social.unsubChat();
+    social.unsubChat = WB.CLOUD.watchChat(friend.uid, msgs => {
+      const box = $("fr-chat"); if (!box) return;
+      box.innerHTML = msgs.length ? msgs.map(m => `<div class="cmsg ${m.from === WB.CLOUD.uid ? "me" : "them"}"><span>${esc(m.text)}</span></div>`).join("") : `<div class="fr-empty">${WB.t("Say hi! 👋")}</div>`;
+      box.scrollTop = box.scrollHeight;
+    });
+    const send = () => { const i = $("fr-chat-input"); const t = i.value.trim(); if (!t) return; WB.CLOUD.sendMessage(friend.uid, t, socialName()); i.value = ""; };
+    $("fr-chat-send").onclick = send;
+    $("fr-chat-input").onkeydown = e => { if (e.key === "Enter") send(); };
+    setTimeout(() => { const i = $("fr-chat-input"); if (i) i.focus(); }, 50);
+  }
+  function socialAmountDialog(type, uid, name) {
+    const isBail = type === "bail";
+    const def = Math.max(1, Math.floor(st.money * (isBail ? 0.25 : 0.1)));
+    const ov = document.createElement("div");
+    ov.className = "amt-dialog";
+    ov.innerHTML = `<div class="amt-card">
+      <div class="amt-ico">${isBail ? "⚖️" : "🤝"}</div>
+      <h3>${isBail ? WB.t("Bail out") : WB.t("Send money to")} ${esc(name)}</h3>
+      <p class="muted">${WB.t("It leaves your wallet and lands in theirs instantly.")}</p>
+      <input id="amt-in" type="text" inputmode="numeric" value="${Math.floor(def)}">
+      <div class="amt-row"><button class="btn subtle" id="amt-cancel">${WB.t("Cancel")}</button><button class="btn primary" id="amt-go">${isBail ? "⚖️ " + WB.t("Bail out") : "💸 " + WB.t("Send")}</button></div>
+    </div>`;
+    $("modal-content").appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector("#amt-cancel").onclick = close;
+    ov.querySelector("#amt-go").onclick = async () => {
+      const amt = Math.floor(Number(($("amt-in").value || "").replace(/[^0-9.]/g, "")) || 0);
+      if (amt <= 0) return;
+      if (st.money < amt) { toast(WB.t("You can't afford that."), "bad"); return; }
+      st.money -= amt;
+      await WB.CLOUD.sendGift(uid, type, amt, socialName());
+      toast(`${isBail ? "⚖️" : "💸"} ${WB.t("Sent")} ${WB.fmt(amt, true)} ${WB.t("to")} ${esc(name)}!`, "good");
+      close();
+    };
+    setTimeout(() => { const i = $("amt-in"); if (i) { i.focus(); i.select(); } }, 50);
   }
 
   const crimeDescCache = {}; // fill() once per crime — random slot-fills would re-randomize every render
@@ -1009,7 +1251,7 @@ WB.UI = (function () {
     let html;
     if (activeTab === "shop") html = subBar("shop") + (sub.shop === "gear" ? tabStore() : tabAssets());
     else if (activeTab === "profile") html = subBar("profile") + (sub.profile === "skills" ? tabSkills() : sub.profile === "awards" ? tabAchievements() : tabStats());
-    else if (activeTab === "challenges") { html = subBar("challenges") + (sub.challenges === "list" ? tabChallenges() : tabLeaderboard()); if (sub.challenges === "leaderboard") setTimeout(loadLeaderboard, 30); }
+    else if (activeTab === "challenges") { html = subBar("challenges") + (sub.challenges === "list" ? tabChallenges() : tabLeaderboard()); }
     else html = ({ careers: tabCareers, crime: tabCrime, prestige: tabPrestige, empire: tabEmpire }[activeTab] || tabStore)();
     if (html !== lastTabHtml || force) {
       lastTabHtml = html;
@@ -1038,6 +1280,7 @@ WB.UI = (function () {
     }
     else if (act === "bail") WB.CRIME.postBail();
     else if (act === "claimchal") { claimChallenge(key); return; }
+    else if (act === "lbrefresh") { loadLeaderboard(); return; }
     else if (act === "openscam") WB.SCAM.open();
     else if (act === "dopost") { const r = WB.ACTIONS.start("social"); if (r && r.refused) toast("😮‍💨 " + r.refused, "bad"); }
     else if (act === "equip") G.buyEquipment(key);
@@ -1162,6 +1405,16 @@ WB.UI = (function () {
     setBar("stress", r.stress, Math.round(r.stress));
     $("rep-val").textContent = Math.floor(r.reputation);
     $("followers-val").textContent = WB.fmt(st.stats.followers);
+    // career you're currently pursuing (from the focused activity)
+    const cChip = $("career-val");
+    if (cChip) {
+      const a = D.ACTIVITIES[st.focus];
+      const ck = a && a.career;
+      if (ck && st.careers[ck] >= 0) {
+        const c = D.CAREERS[ck], t = st.careers[ck];
+        cChip.textContent = `${WB.t(c.tiers[t].name)} (${WB.t("Lv")} ${t + 1})`;
+      } else cChip.textContent = WB.t("Freelancing");
+    }
 
     // living character panel: status, mood, level, prison state
     renderStatus();
@@ -1196,6 +1449,10 @@ WB.UI = (function () {
 
     $("hustle-val").textContent = "+" + WB.fmt(G.clickValue(), true);
     $("prestige-pill").style.display = G.legacyGain() > 0 ? "" : "none";
+
+    // Profile button: username + online dot
+    const pn = $("profile-name"); if (pn) pn.textContent = playerName();
+    const pd = $("profile-dot"); if (pd) pd.className = "pf-dot" + (WB.CLOUD && WB.CLOUD.enabled ? " on" : "");
 
     // Secret tab may have just unlocked
     renderTabBar();
@@ -1502,6 +1759,7 @@ WB.UI = (function () {
     });
 
     $("settings-btn").addEventListener("click", showSettings);
+    $("profile-btn").addEventListener("click", showProfile);
 
     // Notification center
     $("notif-btn").addEventListener("click", e => { e.stopPropagation(); toggleNotifPanel(); });
@@ -1568,6 +1826,8 @@ WB.UI = (function () {
     };
     window.addEventListener("wb-cloud-ready", () => setTimeout(cloudSync, 1500));
     setInterval(cloudSync, 60000);
+    startSocial(); // friend-request + gift listeners (run all session)
+    setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
   }
 
   document.addEventListener("DOMContentLoaded", boot);

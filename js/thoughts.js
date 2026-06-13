@@ -150,6 +150,41 @@ WB.THOUGHTS = (function () {
       "Staring at the wall. Strategically.",
       "My to-do list has a to-do list.",
       "Is procrastination a skill? Asking for me.",
+      "What if I just... started a podcast instead.",
+      "The WiFi is the only thing in this room that's faithful.",
+      "Somewhere, a 19-year-old just made my net worth in an afternoon.",
+      "I wonder what my leaderboard rank is. I wonder if I should care. I do.",
+      "One more reorg of the desktop icons and THEN I'll work.",
+      "I should text a friend. Do I have friends? I have a friends list.",
+      "If overthinking were billable I'd be retired.",
+      "New plan: same as the old plan but with more confidence.",
+      "Refactoring my whole life. Starting tomorrow. Probably.",
+      "I named my plant after a tax loophole. We're both thriving.",
+      "Brain: 1 open tab of work, 47 of doom.",
+      "The grind doesn't stop. Mostly because I never started.",
+      "Is it 'rise and grind' or 'rise and find a reason to lie back down'?",
+      "I bought a course on focus. Haven't watched it. Ironic.",
+      "Every billionaire started somewhere. Usually with more than this.",
+      "My origin story is going to be SO good in the documentary.",
+    ],
+    // ---- new situational pools ----
+    leaderboard: [
+      "Just need to pass ONE more name on the leaderboard.",
+      "Somebody named xX_Tycoon_Xx is ahead of me. Unacceptable.",
+      "Rank is temporary. Screenshotting rank #1 is forever.",
+      "I refreshed the leaderboard again. I have a problem.",
+    ],
+    friends: [
+      "I should bail my buddy out of jail. Or not. Drama is content.",
+      "A friend sent me money once. I framed the notification.",
+      "Networking is just friendship with a spreadsheet.",
+      "My friends list is my real net worth. (The money helps though.)",
+    ],
+    smelly: [
+      "I can smell the ambition. And also myself. Mostly myself.",
+      "Day three in this hoodie. We've bonded.",
+      "Hygiene is a Q2 problem.",
+      "The chair and I have unresolved issues.",
     ],
 
     // Energy / mood
@@ -391,6 +426,9 @@ WB.THOUGHTS = (function () {
     // Situational
     if (s.housing >= 1) add("haveCat", 0.7);
     if (s.assets && Object.keys(s.assets.staff || {}).length > 0) add("haveStaff", 1);
+    if (s.res.hygiene != null && s.res.hygiene < 35) add("smelly", 2);
+    if (s.money >= 1e5) add("leaderboard", 0.8);
+    add("friends", 0.5);
 
     // Era
     add("era" + s.era, 1);

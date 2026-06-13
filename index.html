@@ -12,13 +12,18 @@
 
     <header id="topbar">
       <div id="logo">📶 WiFi <span>Billionaire</span></div>
-      <div id="money">$0</div>
-      <div id="ips">$0/sec</div>
-      <div class="badge" id="era-badge">2015 · Internet Era</div>
-      <div class="badge" id="boost-badge" style="display:none"></div>
-      <div class="badge" id="heat-pill" style="display:none"></div>
+      <div id="wallet">
+        <div id="money">$0</div>
+        <div id="ips">$0/sec</div>
+      </div>
+      <div id="badges">
+        <div class="badge" id="era-badge">2015 · Internet Era</div>
+        <div class="badge" id="boost-badge" style="display:none"></div>
+        <div class="badge" id="heat-pill" style="display:none"></div>
+      </div>
       <div class="spacer"></div>
       <button id="prestige-pill" style="display:none" data-i18n="♻️ PRESTIGE READY">♻️ PRESTIGE READY</button>
+      <button id="profile-btn" title="Your profile & friends"><span class="pf-dot" id="profile-dot"></span><span id="profile-name">Player</span><span id="profile-badge" style="display:none">0</span></button>
       <button id="notif-btn" title="Notifications">🔔<span id="notif-badge" style="display:none">0</span></button>
       <button id="theme-btn" title="Toggle dark mode">🌙</button>
       <button id="settings-btn" title="Settings">⚙️</button>
@@ -82,6 +87,7 @@
             </div>
           </div>
           <div id="char-chips">
+            <span class="cchip" id="career-chip" title="Career you're pursuing">💼 <b id="career-val">—</b></span>
             <span class="cchip"><span data-i18n="🌟 Reputation">🌟 Reputation</span> <b id="rep-val">0</b></span>
             <span class="cchip"><span data-i18n="📱 Fans">📱 Fans</span> <b id="followers-val">0</b></span>
           </div>

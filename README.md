@@ -165,18 +165,27 @@ leaderboard live, in the [Firebase console](https://console.firebase.google.com/
 `wifibillionare-1acf6`:
 1. **Build → Firestore Database → Create database** (production mode is fine).
 2. **Build → Authentication → Sign-in method → enable Anonymous.**
-3. **Firestore → Rules**, paste:
+3. **Firestore → Rules**, paste (covers leaderboard + friends/chat/trade/bail):
    ```
    rules_version = '2';
    service cloud.firestore {
      match /databases/{db}/documents {
-       match /scores/{uid}   { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
-       match /presence/{uid} { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
+       match /scores/{uid} {
+         allow read: if true;
+         allow write: if request.auth != null && request.auth.uid == uid;
+         // friends can drop a request/gift into your subcollections:
+         match /requests/{from} { allow read, delete: if request.auth.uid == uid; allow create: if request.auth != null; }
+         match /friends/{fid}   { allow read: if request.auth.uid == uid; allow write: if request.auth != null; }
+         match /inbox/{id}      { allow read, delete: if request.auth.uid == uid; allow create: if request.auth != null; }
+       }
+       match /presence/{uid}            { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
+       match /chats/{chatId}/msgs/{m}   { allow read, create: if request.auth != null; }
+       match /feedback/{id}             { allow create: if request.auth != null; }
      }
    }
    ```
-Until those three steps are done the game runs fine — the leaderboard simply shows
-"offline" (it degrades gracefully and never blocks play).
+Until those three steps are done the game runs fine — the leaderboard and friends
+simply show "offline" (everything degrades gracefully and never blocks play).
 
 > Legacy note: `app/main.swift` + `build.sh` (native Mac WKWebView shell) and
 > `build-win.sh` (manual Electron zip) are superseded by the electron-builder

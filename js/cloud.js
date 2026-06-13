@@ -20,6 +20,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import {
   getFirestore, doc, setDoc, getDocs, collection, query,
   orderBy, limit, where, serverTimestamp, Timestamp,
+  onSnapshot, addDoc, deleteDoc, getDoc, updateDoc,
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -52,12 +53,13 @@ async function init() {
 }
 Cloud.ready = init();
 
-// upsert this player's row (own doc only)
+// upsert this player's row (own doc only). nameLower lets friends find you by name.
 Cloud.submitScore = async function ({ name, netWorth, prestige, era }) {
   if (!Cloud.enabled || !db) return false;
+  const n = String(name || "Anon").slice(0, 24);
   try {
     await setDoc(doc(db, "scores", Cloud.uid), {
-      name: String(name || "Anon").slice(0, 24),
+      name: n, nameLower: n.toLowerCase(),
       netWorth: Math.max(0, Math.floor(netWorth || 0)),
       prestige: prestige || 0, era: era || 0, ts: serverTimestamp(),
     }, { merge: true });
@@ -86,6 +88,115 @@ Cloud.heartbeat = async function (name) {
     Cloud.online = Math.max(1, snap.size);
   } catch (e) { Cloud.lastError = e.message; }
   return Cloud.online;
+};
+
+// ============================================================ FRIENDS / SOCIAL
+const chatId = (a, b) => [a, b].sort().join("__");
+
+// find another player by exact username (case-insensitive)
+Cloud.findByName = async function (name) {
+  if (!Cloud.enabled || !db) return null;
+  try {
+    const snap = await getDocs(query(collection(db, "scores"),
+      where("nameLower", "==", String(name).trim().toLowerCase()), limit(1)));
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { uid: d.id, ...d.data() };
+  } catch (e) { Cloud.lastError = e.message; return null; }
+};
+
+// send a friend request to a player (by username)
+Cloud.sendFriendRequest = async function (name, myName) {
+  if (!Cloud.enabled || !db) return { ok: false, why: "offline" };
+  const target = await Cloud.findByName(name);
+  if (!target) return { ok: false, why: "notfound" };
+  if (target.uid === Cloud.uid) return { ok: false, why: "self" };
+  try {
+    await setDoc(doc(db, "scores", target.uid, "requests", Cloud.uid),
+      { name: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
+    return { ok: true, name: target.name };
+  } catch (e) { Cloud.lastError = e.message; return { ok: false, why: "error" }; }
+};
+
+// accept an incoming request → become friends both ways
+Cloud.acceptFriendRequest = async function (fromUid, fromName, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await setDoc(doc(db, "scores", Cloud.uid, "friends", fromUid), { name: fromName || "Anon", since: serverTimestamp() });
+    await setDoc(doc(db, "scores", fromUid, "friends", Cloud.uid), { name: String(myName || "Anon").slice(0, 24), since: serverTimestamp() });
+    await deleteDoc(doc(db, "scores", Cloud.uid, "requests", fromUid));
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+Cloud.declineRequest = async function (fromUid) {
+  if (!Cloud.enabled || !db) return;
+  try { await deleteDoc(doc(db, "scores", Cloud.uid, "requests", fromUid)); } catch (e) {}
+};
+
+// live listeners — call the cb whenever the data changes (real-time)
+Cloud.watchRequests = function (cb) {
+  if (!Cloud.enabled || !db) { cb([]); return () => {}; }
+  return onSnapshot(collection(db, "scores", Cloud.uid, "requests"),
+    (s) => cb(s.docs.map((d) => ({ uid: d.id, ...d.data() }))), () => cb([]));
+};
+Cloud.watchFriends = function (cb) {
+  if (!Cloud.enabled || !db) { cb([]); return () => {}; }
+  // watch the friend list, and each friend's score doc, so net worth + online update live
+  const sub = {}; let base = [];
+  const emit = () => cb(base.map((f) => ({ ...f, ...(sub[f.uid] && sub[f.uid].data || {}),
+    online: sub[f.uid] && sub[f.uid].data && sub[f.uid].data.ts ? (Date.now() - sub[f.uid].data.ts.toMillis() < 150000) : false })));
+  const top = onSnapshot(collection(db, "scores", Cloud.uid, "friends"), (s) => {
+    base = s.docs.map((d) => ({ uid: d.id, name: d.data().name }));
+    const ids = new Set(base.map((f) => f.uid));
+    base.forEach((f) => { if (!sub[f.uid]) sub[f.uid] = { unsub: onSnapshot(doc(db, "scores", f.uid), (sd) => { sub[f.uid].data = sd.data(); emit(); }), data: null }; });
+    Object.keys(sub).forEach((id) => { if (!ids.has(id)) { sub[id].unsub && sub[id].unsub(); delete sub[id]; } });
+    emit();
+  }, () => cb([]));
+  return () => { top(); Object.values(sub).forEach((x) => x.unsub && x.unsub()); };
+};
+
+// chat
+Cloud.sendMessage = async function (friendUid, text, myName) {
+  if (!Cloud.enabled || !db || !text.trim()) return false;
+  try {
+    await addDoc(collection(db, "chats", chatId(Cloud.uid, friendUid), "msgs"),
+      { from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), text: String(text).slice(0, 280), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+Cloud.watchChat = function (friendUid, cb) {
+  if (!Cloud.enabled || !db) { cb([]); return () => {}; }
+  return onSnapshot(query(collection(db, "chats", chatId(Cloud.uid, friendUid), "msgs"), orderBy("ts", "asc"), limit(60)),
+    (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))), () => cb([]));
+};
+
+// gifts: trade / bail-out drop into the friend's inbox; they claim it in-game
+Cloud.sendGift = async function (friendUid, type, amount, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "scores", friendUid, "inbox"),
+      { type, amount: Math.max(0, Math.floor(amount)), from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+Cloud.watchInbox = function (cb) {
+  if (!Cloud.enabled || !db) { cb([]); return () => {}; }
+  return onSnapshot(collection(db, "scores", Cloud.uid, "inbox"),
+    (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))), () => cb([]));
+};
+Cloud.clearInbox = async function (id) {
+  if (!Cloud.enabled || !db) return;
+  try { await deleteDoc(doc(db, "scores", Cloud.uid, "inbox", id)); } catch (e) {}
+};
+
+// anonymous feedback from the "Do you like the game?" survey
+Cloud.submitFeedback = async function (reasons, text) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "feedback"),
+      { uid: Cloud.uid, reasons: reasons || [], text: String(text || "").slice(0, 500), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
 };
 
 WB.CLOUD = Cloud;
