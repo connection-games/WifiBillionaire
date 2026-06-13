@@ -179,6 +179,11 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.2.2 — Onboarding & Installer Polish", items: [
+      "🧑‍🏫 Tutorial 3.0: the help card now shrinks in from each thing it explains and points right at it with a little beak — crystal clear what you're looking at.",
+      "💿 Branded installer: the Mac DMG now opens on a deep-navy window with the big app icon and Applications folder (no more blank grey box), and each version mounts under its own name.",
+      "🛡️ Clearer guidance on the 'unknown publisher' antivirus warnings (it's an unsigned-app prompt, not a real virus) — see the README for the one-click bypass and the permanent fix.",
+    ]},
     { v: "v6.2.1 — Install Fix", items: [
       "🛡️ FIXED: macOS no longer says the app is \"damaged\" — every build is now ad-hoc code-signed, so the whole bundle is sealed properly (Apple Silicon was rejecting the old unsigned bundle outright).",
       "💿 Gorgeous new DMG: glowing brand mark, 'drag to install' arrow, and a first-launch hint — plus a polished Windows installer to match.",
@@ -370,6 +375,7 @@ WB.UI = (function () {
     { target: "goal-banner", icon: "🎯", title: "Follow the goal", text: "The goal bar always shows your next milestone. Now go — from this bedroom to a billion. 📈" },
   ];
   let tutStep = -1;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function showTutStep(i) {
     tutStep = i;
     if (i >= TUT_STEPS.length) return endTutorial();
@@ -380,12 +386,16 @@ WB.UI = (function () {
     const el = s2.target && $(s2.target);
     const r = el ? el.getBoundingClientRect()
       : { left: innerWidth / 2 - 60, top: innerHeight / 2 - 60, width: 120, height: 120 };
+
+    // spotlight cutout glides to the target
     const pad = 7;
     spot.style.left = (r.left - pad) + "px";
     spot.style.top = (r.top - pad) + "px";
     spot.style.width = (r.width + pad * 2) + "px";
     spot.style.height = (r.height + pad * 2) + "px";
+
     card.innerHTML = `
+      <div class="tut-beak"></div>
       <div class="tut-head"><span class="tut-ico">${s2.icon}</span><h3>${WB.t(s2.title)}</h3><span class="tut-step">${i + 1}/${TUT_STEPS.length}</span></div>
       <p>${WB.t(s2.text)}</p>
       <div class="tut-row">
@@ -393,11 +403,40 @@ WB.UI = (function () {
         <span class="tut-dots">${TUT_STEPS.map((_, j) => `<i class="${j <= i ? "on" : ""}"></i>`).join("")}</span>
         <button class="btn primary" id="tut-next">${i === TUT_STEPS.length - 1 ? WB.t("Let's go!") : WB.t("Next")}</button>
       </div>`;
+
+    // measure, then place on the side of the target with the most room
+    const cw = card.offsetWidth, ch = card.offsetHeight, gap = 20;
+    const vw = innerWidth, vh = innerHeight;
+    const tcx = r.left + r.width / 2, tcy = r.top + r.height / 2;
+    let dir, left, top;
+    if (vh - (r.top + r.height) > ch + gap + 8) {            // below
+      dir = "up"; top = r.top + r.height + gap; left = clamp(tcx - cw / 2, 12, vw - cw - 12);
+    } else if (r.top > ch + gap + 8) {                        // above
+      dir = "down"; top = r.top - ch - gap; left = clamp(tcx - cw / 2, 12, vw - cw - 12);
+    } else if (vw - (r.left + r.width) > cw + gap) {          // right
+      dir = "left"; left = r.left + r.width + gap; top = clamp(tcy - ch / 2, 12, vh - ch - 12);
+    } else {                                                  // left
+      dir = "right"; left = r.left - cw - gap; top = clamp(tcy - ch / 2, 12, vh - ch - 12);
+    }
+    card.dataset.dir = dir;
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+
+    // point the beak at the target, and make the card "shrink in" from that point
+    const beak = card.querySelector(".tut-beak");
+    if (dir === "up" || dir === "down") {
+      const bx = clamp(tcx - left, 20, cw - 20);
+      beak.style.left = (bx - 9) + "px"; beak.style.top = ""; beak.style.right = ""; beak.style.bottom = "";
+      card.style.setProperty("--tox", bx + "px");
+      card.style.setProperty("--toy", dir === "up" ? "0%" : "100%");
+    } else {
+      const by = clamp(tcy - top, 20, ch - 20);
+      beak.style.top = (by - 9) + "px"; beak.style.left = ""; beak.style.right = ""; beak.style.bottom = "";
+      card.style.setProperty("--toy", by + "px");
+      card.style.setProperty("--tox", dir === "left" ? "0%" : "100%");
+    }
     card.classList.remove("tutpop"); void card.offsetWidth; card.classList.add("tutpop");
-    const cw = 390, ch = 185;
-    const below = r.top + r.height + ch + 26 < innerHeight;
-    card.style.top = below ? (r.top + r.height + 16) + "px" : Math.max(12, r.top - ch - 16) + "px";
-    card.style.left = Math.min(Math.max(r.left + r.width / 2 - cw / 2, 14), innerWidth - cw - 14) + "px";
+
     $("tut-next").onclick = () => showTutStep(i + 1);
     $("tut-skip").onclick = endTutorial;
   }

@@ -17,7 +17,7 @@ questionable project ideas, and an inner monologue that never stops.
 All versions: [**Releases page**](https://github.com/connection-games/WifiBillionare/releases/latest)
 
 ### Install on macOS
-1. Open the `.dmg` and follow the arrow — drag **WiFi Billionaire** onto **Applications**
+1. Open the `.dmg` and drag **WiFi Billionaire** onto the **Applications** folder
    (or unzip the `.zip` and do the same).
 2. **First launch only:** right-click (or Control-click) the app in Applications and choose
    **Open**, then click **Open** again in the dialog. The app is ad-hoc code-signed, so it
@@ -34,6 +34,41 @@ click **More info** → **Run anyway**. Installed apps auto-update from this rep
 ### Play in the browser (no install)
 Clone or download this repo, then double-click `index.html` — runs straight from disk.
 Or `node serve.js` and open <http://localhost:8741>.
+
+---
+
+## 🛡️ "Antivirus says it's a virus" — what's actually going on
+
+It isn't a virus — it's an **unsigned** app. macOS Gatekeeper and Windows
+SmartScreen/Defender flag *any* program that isn't signed with a paid publisher
+certificate, because they can't verify who made it. The warning literally means
+"unknown publisher," not "malware detected." Two ways to deal with it:
+
+**A) Just get past it (free, per-user):**
+- **macOS:** right-click the app → **Open** → **Open** (once). Or System Settings →
+  Privacy & Security → **Open Anyway**.
+- **Windows:** on the SmartScreen dialog click **More info → Run anyway**. If
+  Defender quarantines the installer, restore it from Protection History and/or add
+  an exclusion for the install folder.
+- **Windows Defender false positive (most effective free fix):** submit
+  `WiFiBillionaireSetup.exe` at <https://www.microsoft.com/wdsi/filesubmission> as a
+  *false positive*. Microsoft typically whitelists it within a day or two, which
+  clears it for everyone — no certificate required.
+
+**B) Make the warnings vanish for good (paid certificates):**
+This is the only durable fix, because it's exactly what the OS is asking for.
+- **macOS:** an Apple **Developer ID** ($99/yr) + **notarization**. Add repo secrets
+  `CSC_LINK` (base64 of your Developer ID `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, remove `mac.identity:null` from
+  `package.json`, and set `mac.notarize: true`. Notarized apps open with zero prompts.
+- **Windows:** an **OV/EV Authenticode** code-signing certificate (from Sectigo,
+  DigiCert, etc.). Add `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets. An EV cert
+  clears SmartScreen immediately; an OV cert clears it as download reputation builds.
+
+> The current builds are **ad-hoc signed** (see below), which already prevents the
+> hard macOS "damaged" block. Without paid certs, the one-time "unknown publisher"
+> prompt is unavoidable for any free app — the steps in (A) are the standard, safe
+> way through it, and (A)'s Defender submission genuinely clears the Windows flag.
 
 ---
 
@@ -57,13 +92,18 @@ npm run dist:win       # build dist/WiFiBillionaireSetup.exe    (run on Windows)
 
 
 ### Installer branding
-The mac DMG ships a branded retina background (640×470, navy/green/gold matching
-the app icon) with glowing brand mark, a "drag to install" guide arrow, and a
-first-launch hint pill; the Windows installer uses matching sidebar/header art.
-Regenerate the artwork (macOS, no extra deps) with:
+The mac DMG opens on a deep-navy branded window (`dmg.backgroundColor`) with a
+big app icon and the Applications folder. **Why a solid colour and not the
+arrow artwork:** modern macOS Finder (Sonoma/Sequoia) ignores the legacy
+alias-based *image* background electron-builder bakes into the DMG's `.DS_Store`
+(the window just shows blank), but it DOES honour a solid `backgroundColor`
+(stored as colour values, not an alias) — and that path also works headless in
+CI. So the navy background is the reliable, good-looking result; the arrow image
+is left out because it cannot be shown dependably. The Windows installer still
+uses full branded sidebar/header art (NSIS renders BMPs fine). Regenerate the
+Windows art (and the unused DMG art, kept for reference) with:
 ```bash
 cd build && swift make-installer-assets.swift . \
-  && tiffutil -cathidpicheck dmg-bg.png dmg-bg@2x.png -out dmg-background.tiff \
   && sips -s format bmp installerSidebar.png --out installerSidebar.bmp \
   && sips -s format bmp installerHeader.png --out installerHeader.bmp
 ```

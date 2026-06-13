@@ -1,6 +1,6 @@
 {
   "name": "wifi-billionaire",
-  "version": "6.2.1",
+  "version": "6.2.2",
   "productName": "WiFi Billionaire",
   "description": "WiFi Billionaire \u2014 an idle/life simulator by Connection Games.",
   "author": "Connection Games",
@@ -58,23 +58,23 @@
       "identity": null
     },
     "dmg": {
-      "title": "WiFi Billionaire",
-      "background": "build/dmg-background.tiff",
-      "iconSize": 124,
+      "title": "WiFi Billionaire ${version}",
+      "backgroundColor": "#0a1230",
+      "iconSize": 128,
       "iconTextSize": 13,
       "window": {
-        "width": 640,
-        "height": 470
+        "width": 600,
+        "height": 400
       },
       "contents": [
         {
-          "x": 168,
-          "y": 232,
+          "x": 150,
+          "y": 205,
           "type": "file"
         },
         {
-          "x": 472,
-          "y": 232,
+          "x": 450,
+          "y": 205,
           "type": "link",
           "path": "/Applications"
         }

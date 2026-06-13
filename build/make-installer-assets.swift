@@ -19,9 +19,12 @@ guard CommandLine.arguments.count > 1 else {
 }
 let outDir = CommandLine.arguments[1]
 
-func savePNG(_ img: NSImage, _ name: String, pixelsWide: Int, pixelsHigh: Int) {
+// opaque=true → 24-bit RGB with NO alpha channel. DMG backgrounds MUST be
+// opaque: Finder's disk-image background renderer shows nothing for an image
+// that carries an alpha channel, even when every pixel is fully opaque.
+func savePNG(_ img: NSImage, _ name: String, pixelsWide: Int, pixelsHigh: Int, opaque: Bool = true) {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixelsWide, pixelsHigh: pixelsHigh,
-                               bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                               bitsPerSample: 8, samplesPerPixel: opaque ? 3 : 4, hasAlpha: !opaque, isPlanar: false,
                                colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     rep.size = img.size
     NSGraphicsContext.saveGraphicsState()
@@ -30,7 +33,7 @@ func savePNG(_ img: NSImage, _ name: String, pixelsWide: Int, pixelsHigh: Int) {
     NSGraphicsContext.restoreGraphicsState()
     let png = rep.representation(using: .png, properties: [:])!
     try! png.write(to: URL(fileURLWithPath: "\(outDir)/\(name)"))
-    print("written: \(outDir)/\(name)")
+    print("written: \(outDir)/\(name) (\(opaque ? "opaque" : "alpha"))")
 }
 
 func text(_ s: String, _ font: NSFont, _ color: NSColor, kern: CGFloat = 0) -> NSAttributedString {

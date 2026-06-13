@@ -503,23 +503,6 @@ html[data-theme="dark"] #modal-overlay { background: rgba(0, 0, 0, 0.55); }
 }
 #theme-btn:hover { transform: rotate(15deg); }
 
-/* ---------- Tutorial ---------- */
-#tut-box {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  background: var(--panel); border: 1px solid var(--border); border-radius: 18px;
-  padding: 18px 22px; width: 440px; max-width: 92vw; z-index: 300;
-  box-shadow: var(--shadow-lg); animation: modalin 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1);
-}
-#tut-box h3 { font-size: 16px; margin-bottom: 7px; letter-spacing: -0.2px; }
-#tut-box p { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 13px; }
-.tut-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.tut-dots { color: var(--muted); font-size: 10px; letter-spacing: 2px; }
-.tut-halo {
-  outline: 3px solid var(--accent) !important; outline-offset: 3px;
-  border-radius: 12px; animation: halopulse 1.2s ease-in-out infinite;
-}
-@keyframes halopulse { 50% { outline-offset: 6px; outline-color: rgba(0, 113, 227, 0.45); } }
-
 /* ---------- Confetti ---------- */
 .confetti-bit {
   position: fixed; top: -14px; width: 9px; height: 13px; z-index: 999;
@@ -1116,33 +1099,62 @@ html[data-theme="dark"] .crime-btn:hover { background: rgba(41, 151, 255, 0.24);
 .disclaimer.mini p { margin-top: 8px; }
 
 /* ---------- Tutorial 2.0: spotlight + floating card ---------- */
+/* ---------- Tutorial 3.0: spotlight + a card that shrinks, flies & points ---------- */
 #tut-spot {
-  position: fixed; z-index: 290; pointer-events: none; border-radius: 18px;
-  box-shadow: 0 0 0 9999px rgba(8, 10, 16, 0.55), 0 0 0 3px var(--accent), 0 0 30px rgba(0, 113, 227, 0.55);
-  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  animation: spotpulse 1.6s ease-in-out infinite;
+  position: fixed; z-index: 290; pointer-events: none; border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 16, 0.62), 0 0 0 3px var(--accent), 0 0 34px rgba(0, 113, 227, 0.6);
+  /* the cutout itself glides smoothly from one target to the next */
+  transition: left 0.55s cubic-bezier(0.4, 0, 0.1, 1), top 0.55s cubic-bezier(0.4, 0, 0.1, 1),
+              width 0.55s cubic-bezier(0.4, 0, 0.1, 1), height 0.55s cubic-bezier(0.4, 0, 0.1, 1);
 }
-@keyframes spotpulse { 50% { box-shadow: 0 0 0 9999px rgba(8, 10, 16, 0.55), 0 0 0 6px rgba(0, 113, 227, 0.55), 0 0 36px rgba(0, 113, 227, 0.65); } }
+#tut-spot::after { /* pulsing focus ring that draws the eye to the target */
+  content: ""; position: absolute; inset: -3px; border-radius: 18px;
+  border: 2px solid var(--accent); animation: spotring 1.5s ease-out infinite;
+}
+@keyframes spotring {
+  0% { transform: scale(1); opacity: 0.9; }
+  70% { transform: scale(1.06); opacity: 0; }
+  100% { opacity: 0; }
+}
 #tut-box {
-  position: fixed; z-index: 295; width: 390px; max-width: 94vw;
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 20px;
-  padding: 18px 20px 16px; box-shadow: var(--shadow-lg);
-  transition: left 0.5s cubic-bezier(0.22, 1, 0.36, 1), top 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  position: fixed; z-index: 295; width: 340px; max-width: 92vw;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 18px;
+  padding: 15px 17px 13px; box-shadow: var(--shadow-lg);
+  transform-origin: var(--tox, 50%) var(--toy, 50%);
+  transition: left 0.55s cubic-bezier(0.34, 1.3, 0.5, 1), top 0.55s cubic-bezier(0.34, 1.3, 0.5, 1);
 }
-#tut-box.tutpop { animation: tutpop 0.45s cubic-bezier(0.18, 1.3, 0.4, 1); }
-@keyframes tutpop { from { transform: scale(0.92) translateY(10px); opacity: 0; } }
-.tut-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+/* each step: the card shrinks in from the target then settles — "shrink & move" */
+#tut-box.tutpop { animation: tutfly 0.5s cubic-bezier(0.2, 1.1, 0.4, 1); }
+@keyframes tutfly {
+  0% { transform: scale(0.4); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* a beak that points from the card at the highlighted element */
+.tut-beak {
+  position: absolute; width: 18px; height: 18px; background: var(--panel);
+  border: 1px solid var(--border-soft); transform: rotate(45deg);
+}
+#tut-box[data-dir="up"]    .tut-beak { top: -10px;  border-right: none; border-bottom: none; }
+#tut-box[data-dir="down"]  .tut-beak { bottom: -10px; border-left: none;  border-top: none; }
+#tut-box[data-dir="left"]  .tut-beak { left: -10px;  border-top: none;   border-right: none; }
+#tut-box[data-dir="right"] .tut-beak { right: -10px; border-bottom: none; border-left: none; }
+.tut-head { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
 .tut-ico {
-  width: 38px; height: 38px; font-size: 19px; flex-shrink: 0;
+  width: 36px; height: 36px; font-size: 18px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--accent-tint); border-radius: 12px;
+  background: var(--accent-tint); border-radius: 11px;
+  animation: tutico 2s ease-in-out infinite;
 }
-.tut-head h3 { flex: 1; font-size: 15.5px; letter-spacing: -0.2px; }
+@keyframes tutico { 50% { transform: scale(1.12) rotate(-6deg); } }
+.tut-head h3 { flex: 1; font-size: 15px; letter-spacing: -0.2px; }
 .tut-step { font-size: 10.5px; font-weight: 800; color: var(--muted); background: var(--panel2); padding: 3px 9px; border-radius: 999px; }
-#tut-box p { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 13px; }
+#tut-box p { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 12px; }
+.tut-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .tut-dots { display: flex; gap: 5px; align-items: center; }
 .tut-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
 .tut-dots i.on { background: var(--accent); width: 16px; border-radius: 999px; }
+.tut-row .btn { padding: 7px 16px; font-size: 12.5px; }
 
 /* ---------- Jail polish: bars only on the room, slick banner ---------- */
 #room-wrap.jailed #room-frame::after {
