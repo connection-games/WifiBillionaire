@@ -257,6 +257,10 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.6.1 — Desktop fixes", items: [
+      "🔒 Fixed: the Admin Control Room password screen now opens in the desktop app (it used a dialog the Mac/Windows app didn't support).",
+      "✏️ Fixed: changing your username now works in the desktop app too.",
+    ]},
     { v: "v6.6.0 — Daily Rewards & Now Playable in Your Browser", items: [
       "📅 NEW: Daily Reward streak — come back each day for an escalating cash bonus that scales with your income. Day 7 is a big payday, then it loops.",
       "🌐 NEW: WiFi Billionaire now runs right in your browser — play instantly on the web, no download needed (also coming to CrazyGames).",
@@ -566,13 +570,28 @@ WB.UI = (function () {
     adminTapAt = t; adminTaps++;
     if (adminTaps >= 5) { adminTaps = 0; setTimeout(openAdminGate, 120); }
   }
-  async function openAdminGate() {
-    const pw = prompt("🔒 Admin access — password:");
-    if (pw == null) return;
-    let ok = false;
-    try { ok = (await sha256Hex(pw)) === ADMIN_PW_HASH; } catch (e) { ok = false; }
-    if (ok) showAdminPanel();
-    else toast("⛔ Wrong password.", "bad");
+  function openAdminGate() {
+    // Custom modal instead of window.prompt(): Electron (the desktop app) does
+    // not support prompt(), so the native dialog never appeared there.
+    openModal(`
+      <div class="ev-icon">🔒</div>
+      <h2>Admin access</h2>
+      <p class="muted">Enter the admin password.</p>
+      <input class="set-input" id="admin-pw" type="password" placeholder="Password" autocomplete="off" style="width:100%;margin:6px 0 14px">
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn" id="admin-cancel">Cancel</button>
+        <button class="btn primary" id="admin-go">Unlock</button>
+      </div>`);
+    const input = $("admin-pw");
+    const submit = async () => {
+      let ok = false;
+      try { ok = (await sha256Hex(input ? input.value : "")) === ADMIN_PW_HASH; } catch (e) { ok = false; }
+      if (ok) { closeModal(); showAdminPanel(); }
+      else toast("⛔ Wrong password.", "bad");
+    };
+    if (input) { input.focus(); input.onkeydown = (e) => { if (e.key === "Enter") submit(); }; }
+    $("admin-cancel").onclick = closeModal;
+    $("admin-go").onclick = submit;
   }
   function broadcastBoost(mult, sec, label) {
     if (!WB.CLOUD || !WB.CLOUD.enabled) { toast("☁️ Cloud offline — can't broadcast.", "bad"); return; }
@@ -1294,14 +1313,29 @@ WB.UI = (function () {
     renderProfileBody();
   }
   function editUsername() {
+    // Custom modal instead of window.prompt() (unsupported in the Electron app).
     const cur = playerName();
-    const v = prompt(WB.t("Choose a username (shown to friends & on the leaderboard):"), cur);
-    if (v == null) return;
-    const name = v.trim().slice(0, 20) || "Player";
-    try { localStorage.setItem("wb_username", name); } catch (e) {}
-    if (WB.CLOUD && WB.CLOUD.enabled) WB.CLOUD.submitScore({ name, netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
-    if ($("pf-username")) $("pf-username").textContent = name;
-    if ($("profile-name")) $("profile-name").textContent = name;
+    openModal(`
+      <div class="ev-icon">✏️</div>
+      <h2>${WB.t("Choose a username")}</h2>
+      <p class="muted">${WB.t("Shown to friends & on the leaderboard.")}</p>
+      <input class="set-input" id="uname-input" type="text" maxlength="20" placeholder="Player" value="${esc(cur)}" autocomplete="off" style="width:100%;margin:6px 0 14px">
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn" id="uname-cancel">${WB.t("Cancel")}</button>
+        <button class="btn primary" id="uname-save">${WB.t("Save")}</button>
+      </div>`);
+    const input = $("uname-input");
+    const save = () => {
+      const name = (input ? input.value : "").trim().slice(0, 20) || "Player";
+      try { localStorage.setItem("wb_username", name); } catch (e) {}
+      if (WB.CLOUD && WB.CLOUD.enabled) WB.CLOUD.submitScore({ name, netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
+      if ($("pf-username")) $("pf-username").textContent = name;
+      if ($("profile-name")) $("profile-name").textContent = name;
+      closeModal();
+    };
+    if (input) { input.focus(); input.select(); input.onkeydown = (e) => { if (e.key === "Enter") save(); }; }
+    $("uname-cancel").onclick = closeModal;
+    $("uname-save").onclick = save;
   }
   function renderProfileBody() {
     const body = $("profile-body"); if (!body) return;
