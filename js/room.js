@@ -714,15 +714,19 @@ WB.ROOM = (function () {
   // Little in-canvas movies: the police arrest, the drive to the launch pad,
   // the trip to the Moon. play("arrest"|"launch"|"moon") and the room becomes
   // a stage until the sequence finishes.
-  let cut = null; // { name, start }
+  let cut = null; // { name, start, onDone }
 
-  function play(name) {
-    if (!CUTS[name]) return;
-    cut = { name, start: Date.now() };
+  // play("arrest") or play("heist", () => showResult()) — onDone fires once the
+  // sequence finishes, so callers can reveal the outcome AFTER the movie ends.
+  function play(name, onDone) {
+    if (!CUTS[name]) { if (onDone) onDone(); return; }
+    if (cut && cut.onDone) { const cb = cut.onDone; cut.onDone = null; setTimeout(cb, 0); } // never drop a pending reveal
+    cut = { name, start: Date.now(), onDone: onDone || null };
     pos = 160; // keep the thought bubble centered during the movie
   }
   // a one-shot narrator card, e.g. playCard("5 BILLION HOURS LATER…", "(it was 9 hours)")
   function playCard(title, sub, dur) {
+    if (cut && cut.onDone) { const cb = cut.onDone; cut.onDone = null; setTimeout(cb, 0); }
     cut = { name: "__card", start: Date.now(), card: { title: String(title || ""), sub: sub || "", dur: dur || 2800 } };
     pos = 160;
   }
@@ -1095,10 +1099,72 @@ WB.ROOM = (function () {
     px(0, 0, W, H, "#0a0e1c");
     px(0, FLOOR_Y + 10, W, H, "#15171f");          // road
     for (let i = 0; i < 6; i++) px(((frame * 6 + i * 60) % (W + 40)) - 20, FLOOR_Y + 22, 14, 2, "#3a4150");
-    sportsCar(40 + p * 150, FLOOR_Y + 4);
-    px(76 + p * 150, FLOOR_Y - 4, 8, 7, "#caa64a"); // a loot bag in back
+    const carx = 40 + p * 150;
+    sportsCar(carx, FLOOR_Y + 4);
+    px(carx + 16, FLOOR_Y - 3, 4, 4, SKIN);          // you, driving
+    if (duo) px(carx + 24, FLOOR_Y - 3, 4, 4, SKIN); // your partner riding shotgun
+    px(carx + 36, FLOOR_Y - 4, 8, 7, "#caa64a");     // a loot bag in back
     if (p > 0.72) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.72) * 3.6})`; ctx.fillRect(0, 0, W, H); }
     caption(duo ? "Split it at the safehouse. We DID it." : "Drive. Do not look back.", 158);
+  }
+
+  // --- heist BUST scenes: it all goes wrong (alarm → shootout → chase → caught).
+  // A NEW, heist-specific failure movie — distinct from the generic "arrest"
+  // (door-knock) cutscene. Every crew member (you + partner) is shown throughout.
+  function heistBustAlarm(p, duo) {
+    px(0, 0, W, H, "#10101a");
+    const red = Math.floor(frame / 2) % 2;            // strobing alarm wash
+    ctx.fillStyle = red ? "rgba(255,40,40,0.22)" : "rgba(255,40,40,0.06)";
+    ctx.fillRect(0, 0, W, H);
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#1a1d28");
+    px(0, FLOOR_Y, W, 2, "#2a3142");
+    px(40, 40, 236, FLOOR_Y - 40, "#23283a");         // vault hall behind
+    px(150, 28, 16, 11, red ? "#ff453a" : "#5a1d1d"); // alarm beacon
+    const step = Math.floor(frame / 3) % 2, x = 220 - p * 150;
+    tinyGuy(x, FLOOR_Y - 4, "#1d1f24", step);                 // you, sprinting for the exit
+    if (duo) tinyGuy(x + 18, FLOOR_Y - 4, "#5a2f8a", !step);  // your partner
+    caption(duo ? "ALARM! Move — get to the car!" : "ALARM! Go, go, GO!", 158);
+  }
+  function heistBustShootout(p, duo) {
+    px(0, 0, W, 120, "#0c1020");
+    px(0, 40, W, 80, "#161b2e");                      // building facade
+    px(0, 120, W, H - 120, "#1b1d24");                // street
+    px(0, 120, W, 2, "#2a2d36");
+    const cstep = Math.floor(frame / 4) % 2;
+    copGuy(280, FLOOR_Y, cstep); copGuy(298, FLOOR_Y, !cstep); // cops on the right, firing
+    if (Math.floor(frame / 2) % 2) { px(272, FLOOR_Y - 6, 5, 3, "#ffd60a"); px(290, FLOOR_Y - 6, 5, 3, "#ffd60a"); }
+    for (let i = 0; i < 6; i++) { const tx = 270 - ((frame * 9 + i * 42) % 260); px(tx, FLOOR_Y - 5 - (i % 2) * 3, 9, 1, "#ffe27a"); } // tracers
+    const step = Math.floor(frame / 3) % 2, x = 56 - p * 18;
+    tinyGuy(x, FLOOR_Y, "#1d1f24", step);                     // you, running/ducking left
+    if (duo) tinyGuy(x + 16, FLOOR_Y, "#5a2f8a", !step);      // partner
+    caption("Bullets flying. This went VERY sideways.", 158);
+  }
+  function heistBustChase(p, duo) {
+    skylinePan(frame * 2);
+    roadScroll(9);
+    const carx = 28 + Math.sin(frame / 6) * 2;
+    sportsCar(carx, FLOOR_Y + 4);                     // your getaway car, fleeing
+    px(carx + 16, FLOOR_Y - 3, 4, 4, SKIN);           // you driving
+    if (duo) px(carx + 24, FLOOR_Y - 3, 4, 4, SKIN);  // partner
+    policeCar(232 - p * 120, FLOOR_Y + 4, Math.floor(frame / 2) % 2); // cops closing in
+    ctx.fillStyle = Math.floor(frame / 3) % 2 ? "rgba(255,69,58,0.10)" : "rgba(10,132,255,0.10)";
+    ctx.fillRect(0, 0, W, H);                          // siren wash
+    caption("FLOOR IT — lose the cops!", 158);
+  }
+  function heistBustCaught(p, duo) {
+    px(0, 0, W, 120, "#0c1020");
+    skylinePan(200);
+    px(0, 120, W, H - 120, "#23262e"); px(0, 120, W, 2, "#15171f");
+    policeCar(18, FLOOR_Y + 4, Math.floor(frame / 2) % 2);   // roadblock
+    policeCar(214, FLOOR_Y + 4, Math.floor(frame / 3) % 2);
+    sportsCar(118, FLOOR_Y + 4);                              // your car, stopped
+    const gx = 150;                                          // you + partner escorted between cops
+    copGuy(gx - 18, FLOOR_Y, Math.floor(frame / 5) % 2);
+    tinyGuy(gx, FLOOR_Y, "#1d1f24", 0);
+    if (duo) tinyGuy(gx + 12, FLOOR_Y, "#5a2f8a", 0);
+    copGuy(gx + (duo ? 30 : 18), FLOOR_Y, Math.floor(frame / 5) % 2);
+    if (p > 0.7) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.7) * 3.3})`; ctx.fillRect(0, 0, W, H); } // fade to jail
+    caption(duo ? "Roadblock. Hands up, both of you. It's over." : "Roadblock. Hands up. It's over.", 158);
   }
 
   const CUTS = {
@@ -1111,6 +1177,18 @@ WB.ROOM = (function () {
       { dur: 2200, draw: p => heistFront(p, true) },
       { dur: 2400, draw: p => heistGrab(p, true) },
       { dur: 2400, draw: p => heistGetaway(p, true) },
+    ],
+    heistBust: [
+      { dur: 2200, draw: p => heistBustAlarm(p, false) },
+      { dur: 2600, draw: p => heistBustShootout(p, false) },
+      { dur: 2800, draw: p => heistBustChase(p, false) },
+      { dur: 2600, draw: p => heistBustCaught(p, false) },
+    ],
+    heistBustDuo: [
+      { dur: 2200, draw: p => heistBustAlarm(p, true) },
+      { dur: 2600, draw: p => heistBustShootout(p, true) },
+      { dur: 2800, draw: p => heistBustChase(p, true) },
+      { dur: 2600, draw: p => heistBustCaught(p, true) },
     ],
     arrest: [
       { dur: 2100, draw: sceneKnock },
@@ -1137,10 +1215,16 @@ WB.ROOM = (function () {
     ],
   };
 
+  function endCut() {
+    const cb = cut && cut.onDone;
+    cut = null;
+    if (cb) setTimeout(cb, 0); // defer so the callback can't re-enter the draw loop
+    return false;
+  }
   function drawCut() {
     if (cut.name === "__card") {
       const t = Date.now() - cut.start;
-      if (t >= cut.card.dur) { cut = null; return false; }
+      if (t >= cut.card.dur) return endCut();
       sceneTitleCard(Math.min(1, t / cut.card.dur), cut.card);
       letterbox();
       return true;
@@ -1155,8 +1239,7 @@ WB.ROOM = (function () {
       }
       t -= ph.dur;
     }
-    cut = null;
-    return false;
+    return endCut();
   }
 
   // ---------- Detail pass: clock, curtains, ceiling light, cat, clutter, asset props ----------

@@ -72,12 +72,14 @@ WB.CRIME = (function () {
     c.crimeEarnings += amount;
   }
 
-  function goToPrison(sec, reason) {
+  function goToPrison(sec, reason, skipCutscene) {
     const c = crimeState();
     c.prisonUntil = now() + sec * 1000;
     c.prisonReason = reason;
     c.timesCaught++;
-    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("arrest"); // sirens, cuffs, the ride downtown
+    // The heist-bust movie already drove us to jail, so it passes skipCutscene
+    // to avoid playing the generic door-knock "arrest" scene on top of it.
+    if (!skipCutscene && WB.ROOM && WB.ROOM.play) WB.ROOM.play("arrest"); // sirens, cuffs, the ride downtown
     WB.UI.toast(`🚔 BUSTED: ${reason} — ${WB.fmtTime(sec)} in jail. Manual actions are locked.`, "bad");
     WB.UI.bubble(WB.pick([
       "Okay this is fine. This is a networking opportunity. In prison.",
@@ -201,25 +203,25 @@ WB.CRIME = (function () {
     { id: "jewelry", name: "Jewelry Store Heist", icon: "💎",
       desc: "Smash-and-grab a high-end boutique. Bring tools, bring nerve.",
       stake: s => Math.max(2000, ips() * 60 * 8), reqCar: false,
-      mins: [30, 60], risk: 0.26, sentence: 600, heat: 20, reqLevel: 6,
+      mins: [60, 110], risk: 0.26, sentence: 600, heat: 20, reqLevel: 6,
       flavorWin: ["The display case never stood a chance. Sparkle: acquired.", "In and out in 90 seconds. The alarm is still ringing."],
       flavorLoss: ["The case was tougher than expected. So were the cops.", "Silent alarm. Very silent. Until it really wasn't."] },
     { id: "armored", name: "Armored Truck Job", icon: "🚚",
       desc: "Intercept a cash transport. You'll need wheels and a stake for gear.",
       stake: s => Math.max(8000, ips() * 60 * 16), reqCar: true,
-      mins: [70, 130], risk: 0.34, sentence: 1100, heat: 34, reqLevel: 12,
+      mins: [140, 240], risk: 0.34, sentence: 1100, heat: 34, reqLevel: 12,
       flavorWin: ["Bags of unmarked bills. The driver is having a day.", "Clean getaway. The car finally earned its keep."],
       flavorLoss: ["Turns out armored trucks are, in fact, armored.", "Roadblock. Spike strip. Into the van you go."] },
     { id: "casino", name: "Casino Vault Heist", icon: "🎰",
       desc: "Eleven friends optional. A very large bankroll required.",
       stake: s => Math.max(50000, ips() * 60 * 40), reqCar: false,
-      mins: [120, 240], risk: 0.40, sentence: 2000, heat: 45, reqLevel: 18,
+      mins: [240, 440], risk: 0.40, sentence: 2000, heat: 45, reqLevel: 18,
       flavorWin: ["The vault opened like it owed you money. Now it does.", "Past security with a smile and several million."],
       flavorLoss: ["The pit boss watches everything. EVERYTHING.", "Facial recognition is unreasonably good these days."] },
     { id: "bank", name: "Bank Robbery", icon: "🏦",
       desc: "The classic. Mask, note, getaway car. Legendary payday.",
       stake: s => Math.max(20000, ips() * 60 * 24), reqCar: true,
-      mins: [150, 320], risk: 0.46, sentence: 2800, heat: 55, reqLevel: 22,
+      mins: [320, 600], risk: 0.46, sentence: 2800, heat: 55, reqLevel: 22,
       flavorWin: ["You robbed a BANK and drove off. Childhood you is screaming.", "Vault to trunk to freedom. Unhinged. And extremely paid."],
       flavorLoss: ["Dye pack. Of course there was a dye pack.", "Three blocks. You made it three whole blocks."] },
   ];
@@ -232,7 +234,12 @@ WB.CRIME = (function () {
     return { ok: true, cost };
   }
   // withFriend: a two-person crew → lower risk, bigger payout. The friend's cut
-  // is delivered separately by ui.js (Cloud.sendHeistCut). Returns the result.
+  // is delivered separately by ui.js (Cloud.sendHeistCut).
+  //
+  // IMPORTANT: this only DECIDES the outcome and pays the stake — it does NOT
+  // credit the payout or send you to jail. Those land in finalizeHardJob(),
+  // which ui.js calls once the heist cutscene finishes, so the result is never
+  // spoiled before the movie plays.
   function commitHard(id, withFriend) {
     const s = S(), c = crimeState();
     const cr = HARD_CRIMES.find(x => x.id === id);
@@ -240,28 +247,43 @@ WB.CRIME = (function () {
     if (inPrison()) return { refused: "You're in jail. Sit tight." };
     const el = eligibleHard(cr);
     if (!el.ok) return { refused: el.why };
-    s.money -= el.cost; // pay the stake up front
+    s.money -= el.cost; // pay the stake up front (this is the cost of trying, not a spoiler)
     let risk = catchChance(cr);
     if (withFriend) risk *= 0.6;
     const caught = WB.chance(risk);
     if (caught) {
-      c.scamFail++;
-      addHeat(cr.heat * 0.7);
       const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
-      goToPrison(sentence, cr.name);
-      return { icon: "🚔", title: "Heist Failed!", win: false, money: -el.cost, job: cr.name,
-        lines: [WB.pick(cr.flavorLoss), `Lost your ${WB.fmt(el.cost, true)} stake. Sentence: ${WB.fmtTime(sentence)}.`], caught: true };
+      return { hard: true, win: false, caught: true, withFriend, job: cr.name, icon: "🚔",
+        title: "Heist Failed!", money: -el.cost, cost: el.cost, sentence, heatAdd: cr.heat * 0.7,
+        lines: [WB.pick(cr.flavorLoss), `Lost your ${WB.fmt(el.cost, true)} stake. Sentence: ${WB.fmtTime(sentence)}.`] };
     }
-    let payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + el.cost * 1.5;
-    if (withFriend) payout *= 1.4;
-    addDirtyMoney(payout);
-    addHeat(cr.heat);
-    c.crimesDone++;
-    WB.GAME.gainXp("business", 80);
-    return { icon: cr.icon, title: cr.name + " — Success", win: true, money: payout, job: cr.name,
+    // Payouts are deliberately big — heists are the marquee high-risk feature.
+    let payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + el.cost * 2.5;
+    if (withFriend) payout *= 1.6; // a crew brings home more
+    payout = Math.floor(payout);
+    return { hard: true, win: true, caught: false, withFriend, job: cr.name, icon: cr.icon,
+      title: cr.name + " — Success", money: payout, cost: el.cost, heatAdd: cr.heat,
       lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)} (stake back +more).`] };
   }
 
-  return { CRIMES, HARD_CRIMES, hasCar, eligibleHard, commitHard, crimeState, commit, eligible, catchChance,
+  // Apply a heist's consequences — called by ui.js AFTER the cutscene ends, so
+  // the money/heat/jail only land once the movie has played out.
+  function finalizeHardJob(r) {
+    if (!r || !r.hard || r.done) return;
+    r.done = true;
+    const c = crimeState();
+    if (r.caught) {
+      c.scamFail++;
+      addHeat(r.heatAdd || 0);
+      goToPrison(r.sentence, r.job, true); // skipCutscene: the bust movie already drove us downtown
+    } else {
+      addDirtyMoney(r.money);
+      addHeat(r.heatAdd || 0);
+      c.crimesDone++;
+      WB.GAME.gainXp("business", 80);
+    }
+  }
+
+  return { CRIMES, HARD_CRIMES, hasCar, eligibleHard, commitHard, finalizeHardJob, crimeState, commit, eligible, catchChance,
     inPrison, prisonLeft, heat, addHeat, addDirtyMoney, goToPrison, bailCost, postBail, scamResolved, tick };
 })();

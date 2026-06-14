@@ -257,6 +257,12 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.6.2 — Heists hit harder", items: [
+      "🎬 The win/loss now only reveals AFTER the heist cutscene plays — no more spoiling it before the movie.",
+      "💥 NEW failure cutscene made just for heists: alarm, bullets flying, a police chase, then the ride to jail (separate from the normal arrest scene).",
+      "🧑‍🤝‍🧑 Your whole crew now shows up in the cutscene — you and your partner, start to finish.",
+      "💰 Heist payouts are way bigger now. It's a dope feature; it should pay like one.",
+    ]},
     { v: "v6.6.1 — Desktop fixes", items: [
       "🔒 Fixed: the Admin Control Room password screen now opens in the desktop app (it used a dialog the Mac/Windows app didn't support).",
       "✏️ Fixed: changing your username now works in the desktop app too.",
@@ -632,7 +638,8 @@ WB.UI = (function () {
           <button class="btn admin-btn" data-loc="free">Free jail</button>
           <button class="btn admin-btn" data-loc="event">Spawn event</button>
           <button class="btn admin-btn" data-loc="legacy">+10 Legacy</button>
-          <button class="btn admin-btn" data-loc="heist">🎬 Heist scene</button>
+          <button class="btn admin-btn" data-loc="heist">🎬 Heist win</button>
+          <button class="btn admin-btn" data-loc="bust">💥 Heist bust</button>
         </div>
         <button class="btn primary wide" id="adm-close" style="margin-top:16px">Close</button>
       </div>`);
@@ -662,6 +669,7 @@ WB.UI = (function () {
     else if (k === "event") { const evs = (WB.EVENTS.MAJOR || []).filter(e => !e.cond || e.cond(st)); if (evs.length) { closeModal(); setTimeout(() => showEventModal(WB.pick(evs)), 200); return; } }
     else if (k === "legacy") { s.prestige.legacy += 10; toast("♻️ +10 Legacy", "good"); }
     else if (k === "heist") { closeModal(); if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("heistDuo"); return; }
+    else if (k === "bust") { closeModal(); if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("heistBustDuo"); return; }
     renderHud(); renderTab(true);
   }
   function applyBroadcast(data) {
@@ -1614,20 +1622,30 @@ WB.UI = (function () {
     return html;
   }
   function doHardJob(id, withFriend, friend) {
+    if (WB.ROOM && WB.ROOM.cutActive && WB.ROOM.cutActive()) { toast("🎬 A job's already in motion — let it play out.", "bad"); return; }
     const r = WB.CRIME.commitHard(id, withFriend);
     if (!r) return;
     if (r.refused) { toast("🚫 " + r.refused, "bad"); return; }
-    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(withFriend ? "heistDuo" : "heist");
-    if (withFriend && friend && r.win) {
-      if (friend.uid === ADAM_UID) setTimeout(() => toast("🐐 Adam: clean job, partner. Same time next week?", "good"), 750);
-      else if (WB.CLOUD && WB.CLOUD.enabled) {
-        const cut = Math.floor(r.money * 0.4);
-        WB.CLOUD.sendHeistCut(friend.uid, cut, playerName(), r.job);
-        setTimeout(() => toast(`🤝 ${WB.t("Sent")} ${friend.name} ${WB.t("their cut")}: ${WB.fmt(cut, true)}`, "good"), 750);
+    renderTab(true); renderHud(); // reflect the stake being paid up front
+
+    // Reveal the outcome only AFTER the cutscene finishes — win or bust.
+    const reveal = () => {
+      WB.CRIME.finalizeHardJob(r); // now the money lands / the jail door closes
+      if (withFriend && friend && r.win) {
+        if (friend.uid === ADAM_UID) toast("🐐 Adam: clean job, partner. Same time next week?", "good");
+        else if (WB.CLOUD && WB.CLOUD.enabled) {
+          const cut = Math.floor(r.money * 0.4);
+          WB.CLOUD.sendHeistCut(friend.uid, cut, playerName(), r.job);
+          toast(`🤝 ${WB.t("Sent")} ${friend.name} ${WB.t("their cut")}: ${WB.fmt(cut, true)}`, "good");
+        }
       }
-    }
-    setTimeout(() => openResult(r), 450);
-    renderTab(true); renderHud();
+      openResult(r);
+      renderTab(true); renderHud();
+    };
+
+    const scene = r.win ? (withFriend ? "heistDuo" : "heist") : (withFriend ? "heistBustDuo" : "heistBust");
+    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(scene, reveal);
+    else reveal();
   }
   function openHeistPicker(id) {
     const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === id);
