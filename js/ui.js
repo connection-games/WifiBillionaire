@@ -203,6 +203,12 @@ WB.UI = (function () {
   }
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.5.4 — Heists, Hard Jobs & a Cleaner HUD", items: [
+      "🏦 NEW: Hard Jobs in Crime — high-stakes heists (jewelry, armored truck, casino, bank) that need an upfront stake and sometimes a car, with cinematic cutscenes and legendary payouts.",
+      "🤝 NEW: Pull heists WITH a friend (or Adam) — a crew lowers the risk, boosts the take, shows your partner in the room, and sends them a cut.",
+      "🎯 The goal bar is cleaner now — an icon chip, a progress bar and a x/20 counter.",
+      "🔔 Notifications trimmed down a touch, plus more of the game (and toasts) now speak Swedish.",
+    ]},
     { v: "v6.5.3 — Smoother Start & a Friend Named Adam", items: [
       "✨ Onboarding is buttery now — a staggered reveal, and switching language flips the entire game live with no reload or flash.",
       "🧑‍🏫 The tutorial glides more smoothly between steps — the spotlight and card move together with a gentler, easier-to-follow pop.",
@@ -474,12 +480,116 @@ WB.UI = (function () {
       if ($("set-reset")) $("set-reset").onclick = () => { if (confirm("Delete EVERYTHING including prestige? No takebacks.")) WB.GAME.hardReset(); };
     }
     $("modal-content").querySelectorAll("[data-settab]").forEach(b => b.onclick = () => {
+      if (b.dataset.settab === "general") bumpAdminTap(); // 5 taps → admin gate
       settingsTab = b.dataset.settab;
       $("modal-content").querySelectorAll("[data-settab]").forEach(x => x.classList.toggle("active", x === b));
       rebind();
     });
     bindBody();
     $("set-close").onclick = closeModal;
+  }
+
+  // ============================================================ Admin (hidden)
+  // Tap the "General" settings tab 5× → password → broadcast events to all players.
+  let adminTaps = 0, adminTapAt = 0, lastBroadcastId = 0;
+  const ADMIN_PW = "Sextonfem62";
+  function bumpAdminTap() {
+    const t = Date.now();
+    if (t - adminTapAt > 2500) adminTaps = 0;
+    adminTapAt = t; adminTaps++;
+    if (adminTaps >= 5) { adminTaps = 0; setTimeout(openAdminGate, 120); }
+  }
+  function openAdminGate() {
+    const pw = prompt("🔒 Admin access — password:");
+    if (pw == null) return;
+    if (pw === ADMIN_PW) showAdminPanel();
+    else toast("⛔ Wrong password.", "bad");
+  }
+  function broadcastBoost(mult, sec, label) {
+    if (!WB.CLOUD || !WB.CLOUD.enabled) { toast("☁️ Cloud offline — can't broadcast.", "bad"); return; }
+    const payload = { kind: "boost", mult, durationSec: sec, msg: label || `×${mult} income for everyone!`, id: Date.now() };
+    applyBroadcast(payload);            // apply to me instantly (dedupes the cloud echo)
+    WB.CLOUD.pushBroadcast(payload);    // … and send it to everyone else
+    toast(`📡 Broadcast sent: ${label || mult + "× · " + sec + "s"}`, "good");
+  }
+  function showAdminPanel() {
+    openModal(`
+      <div class="admin-wrap">
+        <div class="admin-head"><span class="admin-badge">ADMIN</span><h2 style="margin:0">Control Room</h2></div>
+        <p class="muted" style="margin-bottom:14px">Broadcasts hit every online player in real time.</p>
+        <div class="admin-sec">🌍 Global income boosts</div>
+        <div class="admin-grid">
+          <button class="btn admin-btn" data-bc="2,60">2× · 1 min</button>
+          <button class="btn admin-btn" data-bc="3,120">3× · 2 min</button>
+          <button class="btn admin-btn" data-bc="5,30">5× · 30s</button>
+          <button class="btn admin-btn hot" data-bc="10,60">🔥 10× · 1 min</button>
+        </div>
+        <div class="admin-sec">🎛️ Custom boost</div>
+        <div class="admin-row">
+          <input id="adm-mult" type="number" min="1" step="0.5" value="2"> <span class="admin-x">×</span>
+          <input id="adm-sec" type="number" min="5" step="5" value="60"> <span class="admin-x">s</span>
+          <button class="btn primary" id="adm-custom">Broadcast</button>
+        </div>
+        <div class="admin-sec">📢 Announcement to all players</div>
+        <div class="admin-row">
+          <input id="adm-msg" type="text" maxlength="120" placeholder="A message to everyone…" style="flex:1">
+          <button class="btn primary" id="adm-announce">Send</button>
+        </div>
+        <div class="admin-sec">🛠️ Local tools (you only)</div>
+        <div class="admin-grid">
+          <button class="btn admin-btn" data-loc="m6">+ $1M</button>
+          <button class="btn admin-btn" data-loc="m9">+ $1B</button>
+          <button class="btn admin-btn" data-loc="era">+ Era</button>
+          <button class="btn admin-btn" data-loc="heat">Clear heat</button>
+          <button class="btn admin-btn" data-loc="free">Free jail</button>
+          <button class="btn admin-btn" data-loc="event">Spawn event</button>
+          <button class="btn admin-btn" data-loc="legacy">+10 Legacy</button>
+          <button class="btn admin-btn" data-loc="heist">🎬 Heist scene</button>
+        </div>
+        <button class="btn primary wide" id="adm-close" style="margin-top:16px">Close</button>
+      </div>`);
+    $("modal-content").querySelectorAll("[data-bc]").forEach(b => b.onclick = () => {
+      const [m, s] = b.dataset.bc.split(",").map(Number);
+      broadcastBoost(m, s, `${m}× income · ${s >= 60 ? s / 60 + " min" : s + "s"}`);
+    });
+    $("adm-custom").onclick = () => broadcastBoost(Math.max(1, +$("adm-mult").value || 2), Math.max(5, +$("adm-sec").value || 60));
+    $("adm-announce").onclick = () => {
+      const m = ($("adm-msg").value || "").trim(); if (!m) return;
+      if (WB.CLOUD && WB.CLOUD.enabled) {
+        const payload = { kind: "msg", msg: m, id: Date.now() };
+        applyBroadcast(payload); WB.CLOUD.pushBroadcast(payload);
+        toast("📢 Announcement sent.", "good"); $("adm-msg").value = "";
+      } else toast("☁️ Cloud offline.", "bad");
+    };
+    $("modal-content").querySelectorAll("[data-loc]").forEach(b => b.onclick = () => adminLocal(b.dataset.loc));
+    $("adm-close").onclick = closeModal;
+  }
+  function adminLocal(k) {
+    const G = WB.GAME, s = st;
+    if (k === "m6") { G.earn(1e6); toast("💰 +$1M", "good"); }
+    else if (k === "m9") { G.earn(1e9); toast("💰 +$1B", "good"); }
+    else if (k === "era") { s.era = Math.min(WB.DATA.ERAS.length - 1, s.era + 1); toast("⏩ Era +1", "good"); }
+    else if (k === "heat") { if (WB.CRIME) WB.CRIME.addHeat(-100); toast("❄️ Heat cleared", "good"); }
+    else if (k === "free") { if (WB.CRIME) { WB.CRIME.crimeState().prisonUntil = 0; if (WB.UI && WB.UI.hidePrison) WB.UI.hidePrison(); } toast("🔓 Freed", "good"); }
+    else if (k === "event") { const evs = (WB.EVENTS.MAJOR || []).filter(e => !e.cond || e.cond(st)); if (evs.length) { closeModal(); setTimeout(() => showEventModal(WB.pick(evs)), 200); return; } }
+    else if (k === "legacy") { s.prestige.legacy += 10; toast("♻️ +10 Legacy", "good"); }
+    else if (k === "heist") { closeModal(); if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("heistDuo"); return; }
+    renderHud(); renderTab(true);
+  }
+  function applyBroadcast(data) {
+    if (!data || !data.id || data.id === lastBroadcastId) return;
+    if (Date.now() - data.id > 120000) { lastBroadcastId = data.id; return; } // ignore stale ones on reconnect
+    lastBroadcastId = data.id;
+    if (data.kind === "boost") {
+      st.boost = { mult: data.mult, until: Date.now() + (data.durationSec || 60) * 1000 };
+      toast(`🌍 GLOBAL EVENT: ${data.msg || ("×" + data.mult + " income!")}`, "era");
+      confetti(); renderHud();
+    } else if (data.kind === "msg") {
+      toast(`📢 ${data.msg}`, "era");
+    } else if (data.kind === "event" && data.eventId) {
+      const ev = (WB.EVENTS.MAJOR || []).find(e => e.id === data.eventId);
+      if (ev && !uiBusy()) showEventModal(ev);
+    }
   }
 
   // ============================================================ Tutorial (spotlight redesign)
@@ -1074,6 +1184,9 @@ WB.UI = (function () {
       WB.CRIME.crimeState().prisonUntil = 0;
       WB.GAME.earn(amt);
       toast(`⚖️ ${g.fromName} ${WB.t("bailed you out of jail!")} (+${WB.fmt(amt, true)})`, "good");
+    } else if (g.type === "heist") {
+      WB.GAME.earn(amt);
+      toast(`🤝 ${g.fromName} ${WB.t("cut you in on")} ${esc(g.job || "a job")} — +${WB.fmt(amt, true)}!`, "good");
     } else {
       WB.GAME.earn(amt);
       toast(`💸 ${g.fromName} ${WB.t("sent you")} ${WB.fmt(amt, true)}!`, "good");
@@ -1369,7 +1482,69 @@ WB.UI = (function () {
         </div>`;
     });
     html += `</div>`;
+
+    // ---- Hard Jobs: stake required, big payouts, solo or with a crew ----
+    html += `<div class="section-title">💰 ${WB.t("Hard Jobs")} <span class="hard-hint">${WB.t("· real stakes, real payouts")}</span></div><div class="crime-grid">`;
+    (C.HARD_CRIMES || []).forEach(cr => {
+      const el = C.eligibleHard(cr);
+      const chance = Math.round(C.catchChance(cr) * 100);
+      const riskCol = chance > 40 ? "#ff453a" : chance > 22 ? "#ff9f0a" : "#34c759";
+      const stake = cr.stake(st);
+      if (!crimeDescCache[cr.id]) crimeDescCache[cr.id] = WB.THOUGHTS.fill(cr.desc);
+      html += `
+        <div class="crime-card hard ${el.ok ? "" : "locked"}">
+          <div class="crime-card-head"><span class="crime-ico">${cr.icon}</span>
+            <span class="risk-pill" style="--rp:${riskCol}">${chance}% ${WB.t("risk")}</span></div>
+          <b class="crime-name">${WB.t(cr.name)}</b>
+          <div class="crime-desc">${crimeDescCache[cr.id]}</div>
+          <div class="crime-stake">🎟️ ${WB.t("Stake")} ${WB.fmt(stake, true)}${cr.reqCar ? ` · 🚗 ${WB.t("car")}` : ""}</div>
+          <div class="crime-meta">⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}</div>
+          ${el.ok
+            ? `<div class="hard-btns">
+                 <button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="hardjob" data-key="${cr.id}">${WB.t("Solo")}</button>
+                 <button class="btn crime-btn coop ${jailed ? "locked" : ""}" data-act="heistfriend" data-key="${cr.id}">🤝 ${WB.t("Crew")}</button>
+               </div>`
+            : `<div class="crime-lock">🔒 ${el.why}</div>`}
+        </div>`;
+    });
+    html += `</div>`;
     return html;
+  }
+  function doHardJob(id, withFriend, friend) {
+    const r = WB.CRIME.commitHard(id, withFriend);
+    if (!r) return;
+    if (r.refused) { toast("🚫 " + r.refused, "bad"); return; }
+    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(withFriend ? "heistDuo" : "heist");
+    if (withFriend && friend && r.win) {
+      if (friend.uid === ADAM_UID) setTimeout(() => toast("🐐 Adam: clean job, partner. Same time next week?", "good"), 750);
+      else if (WB.CLOUD && WB.CLOUD.enabled) {
+        const cut = Math.floor(r.money * 0.4);
+        WB.CLOUD.sendHeistCut(friend.uid, cut, playerName(), r.job);
+        setTimeout(() => toast(`🤝 ${WB.t("Sent")} ${friend.name} ${WB.t("their cut")}: ${WB.fmt(cut, true)}`, "good"), 750);
+      }
+    }
+    setTimeout(() => openResult(r), 450);
+    renderTab(true); renderHud();
+  }
+  function openHeistPicker(id) {
+    const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === id);
+    const el = WB.CRIME.eligibleHard(cr);
+    if (!el.ok) { toast("🚫 " + el.why, "bad"); return; }
+    if (WB.CRIME.inPrison()) { toast("🚫 " + WB.t("You're in jail. Sit tight."), "bad"); return; }
+    const online = (social.friends || []).filter(f => f.online);
+    const crew = [{ uid: ADAM_UID, name: "Adam" }].concat(online.map(f => ({ uid: f.uid, name: f.name })));
+    openModal(`
+      <div class="ev-icon">🤝</div>
+      <h2>${WB.t("Pick your crew")}</h2>
+      <p>${WB.t("A partner lowers the risk and boosts the take — and gets a cut sent to them.")}</p>
+      <div class="ev-choices">${crew.map(f => `<button class="btn choice crew-pick" data-uid="${f.uid}" data-name="${esc(f.name)}"><b>🧑‍🤝‍🧑 ${esc(f.name)}${f.uid === ADAM_UID ? " 🐐" : ""}</b>${f.uid === ADAM_UID ? `<small>${WB.t("Your built-in partner — always down.")}</small>` : ""}</button>`).join("")}</div>
+      <button class="btn subtle wide" id="crew-cancel" style="margin-top:10px">${WB.t("Cancel")}</button>`);
+    $("modal-content").querySelectorAll(".crew-pick").forEach(b => b.onclick = () => {
+      const friend = { uid: b.dataset.uid, name: b.dataset.name };
+      closeModal();
+      setTimeout(() => doHardJob(id, true, friend), 120);
+    });
+    $("crew-cancel").onclick = closeModal;
   }
 
   // ---------- Empire tab (secret endgame) ----------
@@ -1464,6 +1639,8 @@ WB.UI = (function () {
     else if (act === "bail") WB.CRIME.postBail();
     else if (act === "claimchal") { claimChallenge(key); return; }
     else if (act === "trackchal") { toggleTrackChallenge(key); return; }
+    else if (act === "hardjob") { doHardJob(key, false); return; }
+    else if (act === "heistfriend") { openHeistPicker(key); return; }
     else if (act === "lbrefresh") { loadLeaderboard(); return; }
     else if (act === "openscam") WB.SCAM.open();
     else if (act === "dopost") { const r = WB.ACTIONS.start("social"); if (r && r.refused) toast("😮‍💨 " + r.refused, "bad"); }
@@ -1608,6 +1785,9 @@ WB.UI = (function () {
     // Goal
     const goal = D.GOALS[st.goalIndex];
     $("goal-text").textContent = goal ? WB.t(goal.text) : WB.t("All goals complete. You are the goal now.");
+    const gTotal = D.GOALS.length, gIdx = Math.min(st.goalIndex, gTotal);
+    if ($("goal-count")) $("goal-count").textContent = `${Math.min(gIdx + (goal ? 1 : 0), gTotal)}/${gTotal}`;
+    if ($("goal-fill")) $("goal-fill").style.width = (gIdx / gTotal * 100) + "%";
 
     // Project (hidden during cutscenes & in jail — no "building a SaaS" bar on the way to prison)
     const p = st.project;
@@ -2016,6 +2196,9 @@ WB.UI = (function () {
     setInterval(cloudSync, 60000);
     startSocial(); // friend-request + gift listeners (run all session)
     setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
+    // listen for admin broadcasts (global events) — apply to this player live
+    const startBroadcast = () => { if (WB.CLOUD && WB.CLOUD.enabled && WB.CLOUD.watchBroadcast) WB.CLOUD.watchBroadcast(applyBroadcast); };
+    if (WB.CLOUD && WB.CLOUD.enabled) startBroadcast(); else window.addEventListener("wb-cloud-ready", startBroadcast);
   }
 
   document.addEventListener("DOMContentLoaded", boot);

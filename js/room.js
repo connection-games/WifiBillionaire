@@ -1062,7 +1062,56 @@ WB.ROOM = (function () {
     }
   }
 
+  // --- heist scenes (💎 hard jobs & 🤝 co-op friend heists) ---
+  function heistFront(p, duo) {
+    px(0, 0, W, H, "#0a0e1c");
+    const r = srand(21);
+    for (let i = 0; i < 16; i++) { const sx = Math.floor(r() * W), sy = Math.floor(r() * 40); if (i % 3) px(sx, sy, 1, 1, "#cdd8f5"); }
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#1a1f2e");
+    px(0, FLOOR_Y, W, 2, "#2a3142");
+    px(46, 44, 228, FLOOR_Y - 44, "#2a2f3e");      // the building
+    px(46, 40, 228, 6, "#3a4150");
+    px(150, 92, 20, FLOOR_Y - 92, "#12151f");      // doorway
+    ctx.font = "bold 8px 'Courier New', monospace"; ctx.fillStyle = "#ffd60a"; ctx.textAlign = "center";
+    ctx.fillText("BANK", 160, 62); ctx.textAlign = "left";
+    const step = Math.floor(frame / 5) % 2, x = 30 + p * 110;
+    tinyGuy(x, FLOOR_Y - 4, "#1d1f24", step);             // you, in black
+    if (duo) tinyGuy(x - 17, FLOOR_Y - 4, "#5a2f8a", !step); // your partner, in purple
+    caption(duo ? "Two-person crew. Less heat, bigger bag." : "In, out, gone. Easy. Right?", 158);
+  }
+  function heistGrab(p, duo) {
+    px(0, 0, W, H, "#10131f");
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#22262f");
+    px(118, 48, 84, FLOOR_Y - 48, "#1a1d28");      // open vault
+    px(124, 54, 72, FLOOR_Y - 60, "#2e3340");
+    for (let i = 0; i < 5; i++) px(130 + i * 12, FLOOR_Y - 16 - (i % 2) * 4, 10, 9, frame % 10 < 5 ? "#e7c34a" : "#caa64a");
+    const step = Math.floor(frame / 4) % 2;
+    tinyGuy(92, FLOOR_Y - 4, "#1d1f24", step);
+    if (duo) tinyGuy(214, FLOOR_Y - 4, "#5a2f8a", !step);
+    for (let i = 0; i < 6; i++) { const fx = 108 + ((frame * 2 + i * 30) % 96); px(fx, 58 + (i * 13) % 52, 4, 3, "#4dde80"); } // flying cash
+    caption("Grab everything that isn't bolted down.", 158);
+  }
+  function heistGetaway(p, duo) {
+    px(0, 0, W, H, "#0a0e1c");
+    px(0, FLOOR_Y + 10, W, H, "#15171f");          // road
+    for (let i = 0; i < 6; i++) px(((frame * 6 + i * 60) % (W + 40)) - 20, FLOOR_Y + 22, 14, 2, "#3a4150");
+    sportsCar(40 + p * 150, FLOOR_Y + 4);
+    px(76 + p * 150, FLOOR_Y - 4, 8, 7, "#caa64a"); // a loot bag in back
+    if (p > 0.72) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.72) * 3.6})`; ctx.fillRect(0, 0, W, H); }
+    caption(duo ? "Split it at the safehouse. We DID it." : "Drive. Do not look back.", 158);
+  }
+
   const CUTS = {
+    heist: [
+      { dur: 2200, draw: p => heistFront(p, false) },
+      { dur: 2400, draw: p => heistGrab(p, false) },
+      { dur: 2400, draw: p => heistGetaway(p, false) },
+    ],
+    heistDuo: [
+      { dur: 2200, draw: p => heistFront(p, true) },
+      { dur: 2400, draw: p => heistGrab(p, true) },
+      { dur: 2400, draw: p => heistGetaway(p, true) },
+    ],
     arrest: [
       { dur: 2100, draw: sceneKnock },
       { dur: 2700, draw: sceneEscort },

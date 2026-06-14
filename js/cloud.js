@@ -199,5 +199,35 @@ Cloud.submitFeedback = async function (reasons, text) {
   } catch (e) { Cloud.lastError = e.message; return false; }
 };
 
+// ============================================================ ADMIN BROADCAST (global events)
+// The admin panel writes broadcast/global; every client watches it and applies
+// new broadcasts (a global income boost, a forced event, or an announcement).
+// Firestore rule needed:  match /broadcast/{id} { allow read: if true; allow write: if request.auth != null; }
+Cloud.pushBroadcast = async function (payload) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await setDoc(doc(db, "broadcast", "global"),
+      { ...payload, id: payload.id || Date.now(), by: Cloud.uid, ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+Cloud.watchBroadcast = function (cb) {
+  if (!Cloud.enabled || !db) return () => {};
+  return onSnapshot(doc(db, "broadcast", "global"),
+    (d) => { if (d.exists()) cb(d.data()); }, () => {});
+};
+
+// ============================================================ FRIEND HEISTS (co-op crime)
+// deliver a friend's cut of a heist into their inbox (reuses the gift inbox plumbing)
+Cloud.sendHeistCut = async function (friendUid, amount, myName, jobName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "scores", friendUid, "inbox"),
+      { type: "heist", amount: Math.max(0, Math.floor(amount)), job: String(jobName || "a job").slice(0, 40),
+        from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
 WB.CLOUD = Cloud;
 window.dispatchEvent(new Event("wb-cloud-ready"));

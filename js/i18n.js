@@ -55,6 +55,27 @@ WB.I18N = (function () {
     "⚙️ General": "⚙️ Allmänt", "🤖 AI": "🤖 AI", "💾 Data": "💾 Data", "✨ Updates": "✨ Uppdateringar", "ℹ️ About": "ℹ️ Om oss",
     "🌍 Language": "🌍 Språk", "Choose your language. Swedish switches money to SEK.":
       "Välj språk. Svenska byter valuta till SEK.",
+    // v6.5.4 — goal bar, hard jobs, crew heists, common toasts
+    "NEXT GOAL": "NÄSTA MÅL", "Goal:": "Mål:",
+    "Hard Jobs": "Tunga jobb", "· real stakes, real payouts": "· riktiga insatser, riktiga utbetalningar",
+    "Stake": "Insats", "car": "bil", "if caught": "om du åker fast", "risk": "risk", "heat": "hetta",
+    "Solo": "Ensam", "Crew": "Gäng", "Commit": "Begå", "Pick your crew": "Välj ditt gäng",
+    "A partner lowers the risk and boosts the take — and gets a cut sent to them.":
+      "En partner sänker risken och ökar bytet — och får en andel skickad till sig.",
+    "Your built-in partner — always down.": "Din inbyggda partner — alltid med på noterna.",
+    "their cut": "sin andel", "cut you in on": "lät dig vara med på", "Sent": "Skickade",
+    "You're in jail. Sit tight.": "Du sitter i finkan. Håll ut.",
+    "Jewelry Store Heist": "Juvelerarkupp", "Armored Truck Job": "Värdetransportkupp",
+    "Casino Vault Heist": "Kasinovalvkupp", "Bank Robbery": "Bankrån",
+    "Fake Online Store": "Falsk nätbutik", "Card Skimming": "Kortskumning", "Identity Theft": "Identitetsstöld",
+    "Crypto Rug Pull": "Krypto rug pull", "Ponzi Scheme": "Pyramidspel", "Counterfeit Sneakers": "Piratsneakers",
+    "DDoS-for-Hire": "DDoS mot betalning", "Launder Heat": "Tvätta hetta",
+    // common toasts
+    "bailed you out of jail!": "betalade din borgen!", "sent you": "skickade dig",
+    "Released from jail. Reformed? Absolutely not.": "Frisläppt. Bättrad? Absolut inte.",
+    "Can't afford bail. Wait it out.": "Har inte råd med borgen. Vänta ut det.",
+    "Tutorial complete — here's $1,000 to get you started!": "Tutorial klar — här är 1 000 kr för att komma igång!",
+    "GLOBAL EVENT": "GLOBAL HÄNDELSE", "Wrong password.": "Fel lösenord.",
     // onboarding
     "Welcome to": "Välkommen till", "Let's set you up — you can change all of this later in Settings.":
       "Vi fixar dig — du kan ändra allt detta senare i Inställningar.",

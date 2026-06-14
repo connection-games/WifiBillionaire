@@ -181,9 +181,15 @@ leaderboard live, in the [Firebase console](https://console.firebase.google.com/
        match /presence/{uid}            { allow read: if true; allow write: if request.auth != null && request.auth.uid == uid; }
        match /chats/{chatId}/msgs/{m}   { allow read, create: if request.auth != null; }
        match /feedback/{id}             { allow create: if request.auth != null; }
+       match /broadcast/{id}            { allow read: if true; allow write: if request.auth != null; }
      }
    }
    ```
+
+   > The `broadcast/global` doc powers the hidden **admin Control Room** (Settings →
+   > tap **General** 5× → password). It lets the admin push a global income boost or
+   > announcement to every online player. Without the `broadcast` rule above, the
+   > admin's *local* tools still work, but global broadcasts won't reach others.
 Until those three steps are done the game runs fine — the leaderboard and friends
 simply show "offline" (everything degrades gracefully and never blocks play).
 

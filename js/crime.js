@@ -194,6 +194,74 @@ WB.CRIME = (function () {
     }
   }
 
-  return { CRIMES, crimeState, commit, eligible, catchChance, inPrison, prisonLeft, heat, addHeat,
-    addDirtyMoney, goToPrison, bailCost, postBail, scamResolved, tick };
+  // ---------- HARD JOBS: high-stakes heists that need an upfront stake and/or a car ----------
+  const CARS = ["hatchback", "sportscar", "supercar"];
+  const hasCar = s => !!(s.assets && s.assets.life && CARS.some(k => s.assets.life[k]));
+  const HARD_CRIMES = [
+    { id: "jewelry", name: "Jewelry Store Heist", icon: "💎",
+      desc: "Smash-and-grab a high-end boutique. Bring tools, bring nerve.",
+      stake: s => Math.max(2000, ips() * 60 * 8), reqCar: false,
+      mins: [30, 60], risk: 0.26, sentence: 600, heat: 20, reqLevel: 6,
+      flavorWin: ["The display case never stood a chance. Sparkle: acquired.", "In and out in 90 seconds. The alarm is still ringing."],
+      flavorLoss: ["The case was tougher than expected. So were the cops.", "Silent alarm. Very silent. Until it really wasn't."] },
+    { id: "armored", name: "Armored Truck Job", icon: "🚚",
+      desc: "Intercept a cash transport. You'll need wheels and a stake for gear.",
+      stake: s => Math.max(8000, ips() * 60 * 16), reqCar: true,
+      mins: [70, 130], risk: 0.34, sentence: 1100, heat: 34, reqLevel: 12,
+      flavorWin: ["Bags of unmarked bills. The driver is having a day.", "Clean getaway. The car finally earned its keep."],
+      flavorLoss: ["Turns out armored trucks are, in fact, armored.", "Roadblock. Spike strip. Into the van you go."] },
+    { id: "casino", name: "Casino Vault Heist", icon: "🎰",
+      desc: "Eleven friends optional. A very large bankroll required.",
+      stake: s => Math.max(50000, ips() * 60 * 40), reqCar: false,
+      mins: [120, 240], risk: 0.40, sentence: 2000, heat: 45, reqLevel: 18,
+      flavorWin: ["The vault opened like it owed you money. Now it does.", "Past security with a smile and several million."],
+      flavorLoss: ["The pit boss watches everything. EVERYTHING.", "Facial recognition is unreasonably good these days."] },
+    { id: "bank", name: "Bank Robbery", icon: "🏦",
+      desc: "The classic. Mask, note, getaway car. Legendary payday.",
+      stake: s => Math.max(20000, ips() * 60 * 24), reqCar: true,
+      mins: [150, 320], risk: 0.46, sentence: 2800, heat: 55, reqLevel: 22,
+      flavorWin: ["You robbed a BANK and drove off. Childhood you is screaming.", "Vault to trunk to freedom. Unhinged. And extremely paid."],
+      flavorLoss: ["Dye pack. Of course there was a dye pack.", "Three blocks. You made it three whole blocks."] },
+  ];
+  function eligibleHard(cr) {
+    const s = S();
+    if (cr.reqLevel && WB.GAME.charLevel() < cr.reqLevel) return { ok: false, why: `Needs character level ${cr.reqLevel}` };
+    if (cr.reqCar && !hasCar(s)) return { ok: false, why: "Needs a car (Shop → Assets)" };
+    const cost = cr.stake(s);
+    if (s.money < cost) return { ok: false, why: `Needs ${WB.fmt(cost, true)} upfront stake` };
+    return { ok: true, cost };
+  }
+  // withFriend: a two-person crew → lower risk, bigger payout. The friend's cut
+  // is delivered separately by ui.js (Cloud.sendHeistCut). Returns the result.
+  function commitHard(id, withFriend) {
+    const s = S(), c = crimeState();
+    const cr = HARD_CRIMES.find(x => x.id === id);
+    if (!cr) return null;
+    if (inPrison()) return { refused: "You're in jail. Sit tight." };
+    const el = eligibleHard(cr);
+    if (!el.ok) return { refused: el.why };
+    s.money -= el.cost; // pay the stake up front
+    let risk = catchChance(cr);
+    if (withFriend) risk *= 0.6;
+    const caught = WB.chance(risk);
+    if (caught) {
+      c.scamFail++;
+      addHeat(cr.heat * 0.7);
+      const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
+      goToPrison(sentence, cr.name);
+      return { icon: "🚔", title: "Heist Failed!", win: false, money: -el.cost, job: cr.name,
+        lines: [WB.pick(cr.flavorLoss), `Lost your ${WB.fmt(el.cost, true)} stake. Sentence: ${WB.fmtTime(sentence)}.`], caught: true };
+    }
+    let payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + el.cost * 1.5;
+    if (withFriend) payout *= 1.4;
+    addDirtyMoney(payout);
+    addHeat(cr.heat);
+    c.crimesDone++;
+    WB.GAME.gainXp("business", 80);
+    return { icon: cr.icon, title: cr.name + " — Success", win: true, money: payout, job: cr.name,
+      lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)} (stake back +more).`] };
+  }
+
+  return { CRIMES, HARD_CRIMES, hasCar, eligibleHard, commitHard, crimeState, commit, eligible, catchChance,
+    inPrison, prisonLeft, heat, addHeat, addDirtyMoney, goToPrison, bailCost, postBail, scamResolved, tick };
 })();

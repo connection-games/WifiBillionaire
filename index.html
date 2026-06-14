@@ -29,7 +29,14 @@
       <button id="settings-btn" title="Settings">⚙️</button>
     </header>
 
-    <div id="goal-banner">🎯 <b data-i18n="Goal:">Goal:</b>&nbsp;<span id="goal-text">Earn your first $10</span></div>
+    <div id="goal-banner">
+      <span class="goal-ico">🎯</span>
+      <div class="goal-mid">
+        <span class="goal-label" data-i18n="NEXT GOAL">NEXT GOAL</span>
+        <span id="goal-text">Earn your first $10</span>
+      </div>
+      <div class="goal-progress"><span class="goal-track"><span class="goal-fill" id="goal-fill"></span></span><span class="goal-count" id="goal-count"></span></div>
+    </div>
 
     <main id="main">
 
