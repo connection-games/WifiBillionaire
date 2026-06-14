@@ -593,6 +593,7 @@ WB.GAME = (function () {
     UI.confetti();
     UI.bubble("Back to mom's bedroom. But this time... I know things.");
     UI.roomDirty();
+    if (WB.CG && WB.CG.happytime) WB.CG.happytime(); // CrazyGames: reward moment (no-op off-platform)
     save();
     return true;
   }

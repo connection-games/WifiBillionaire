@@ -201,8 +201,67 @@ WB.UI = (function () {
       <button class="btn primary" id="off-done">Nice.</button>`);
     $("off-done").onclick = closeModal;
   }
+
+  // ============================================================ Daily reward streak
+  // Come back each day for an escalating cash bonus that scales with your income,
+  // so it stays meaningful at every stage. Day 7 is a big payday, then it loops.
+  // Stored in localStorage so it survives prestige and game updates.
+  const dayKey = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  function readDaily() { try { return JSON.parse(localStorage.getItem("wb_daily") || "null"); } catch (e) { return null; } }
+  function writeDaily(rec) { try { localStorage.setItem("wb_daily", JSON.stringify(rec)); } catch (e) {} }
+  function dailyReward(streak) {
+    const day = ((streak - 1) % 7) + 1;
+    const ips = (WB.GAME.incomePerSec && WB.GAME.incomePerSec()) || 0;
+    let reward = Math.max(250, ips * 180) * (1 + 0.2 * (day - 1)); // ~3 min of income, ramps across the week
+    if (day === 7) reward *= 3;                                    // day 7 = big payday
+    return { day, reward: Math.max(1, Math.floor(reward)) };
+  }
+  function maybeDailyReward() {
+    const rec = readDaily();
+    const today = new Date(), tKey = dayKey(today);
+    const yKey = dayKey(new Date(today.getTime() - 86400000));
+    if (rec && rec.last === tKey) return;                 // already claimed today
+    const streak = rec && rec.last === yKey ? (rec.streak || 0) + 1 : 1; // continue or reset
+    const show = () => {
+      if (modalIsOpen) { setTimeout(show, 1500); return; } // queue politely behind onboarding/tutorial/offline
+      showDailyModal(streak, tKey);
+    };
+    setTimeout(show, 1400);
+  }
+  function showDailyModal(streak, tKey) {
+    const { day, reward } = dailyReward(streak);
+    const pips = [1, 2, 3, 4, 5, 6, 7].map(n => {
+      const past = n < day, cur = n === day;
+      const bg = past ? "rgba(77,222,128,.18)" : cur ? "linear-gradient(180deg,#4dde80,#2bb85f)" : "rgba(255,255,255,.06)";
+      const col = cur ? "#04210f" : past ? "#7be3a4" : "var(--muted,#9aa)";
+      const bd = cur ? "#4dde80" : "rgba(255,255,255,.10)";
+      return `<div style="flex:1;max-width:46px;padding:9px 0;border-radius:11px;font-size:12px;font-weight:800;text-align:center;background:${bg};color:${col};border:1px solid ${bd}">${past ? "✓" : n === 7 ? "🎁" : "D" + n}</div>`;
+    }).join("");
+    openModal(`
+      <div class="ev-icon">📅</div>
+      <h2>Daily Reward</h2>
+      <p>Day <b>${streak}</b> of your login streak${day === 7 ? " — <b>payday!</b> 🎁" : ""}. Keep showing up.</p>
+      <div style="display:flex;gap:6px;justify-content:center;margin:14px 2px">${pips}</div>
+      <div class="offline-amount">${WB.fmt(reward, true)}</div>
+      <button class="btn primary" id="daily-claim">Claim 💰</button>`);
+    $("daily-claim").onclick = () => {
+      WB.GAME.earn(reward);
+      writeDaily({ last: tKey, streak });
+      confetti();
+      toast(`📅 Day ${streak} reward: ${WB.fmt(reward, true)}!`, "good");
+      if (WB.CG && WB.CG.happytime && day === 7) WB.CG.happytime();
+      if (WB.GAME.save) WB.GAME.save();
+      closeModal();
+    };
+  }
+
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.6.0 — Daily Rewards & Now Playable in Your Browser", items: [
+      "📅 NEW: Daily Reward streak — come back each day for an escalating cash bonus that scales with your income. Day 7 is a big payday, then it loops.",
+      "🌐 NEW: WiFi Billionaire now runs right in your browser — play instantly on the web, no download needed (also coming to CrazyGames).",
+      "🔒 Tightened up behind the scenes for the public web release.",
+    ]},
     { v: "v6.5.4 — Heists, Hard Jobs & a Cleaner HUD", items: [
       "🏦 NEW: Hard Jobs in Crime — high-stakes heists (jewelry, armored truck, casino, bank) that need an upfront stake and sometimes a car, with cinematic cutscenes and legendary payouts.",
       "🤝 NEW: Pull heists WITH a friend (or Adam) — a crew lowers the risk, boosts the take, shows your partner in the room, and sends them a cut.",
@@ -348,7 +407,7 @@ WB.UI = (function () {
           <p>Have a tip, suggestion, or idea to make the game better? We'd love to hear from you. Reach out to us at:</p>
           <div class="contact-row">
             <a class="contact-pill" href="mailto:cntngames96@gmail.com" target="_blank" rel="noopener">📧 cntngames96@gmail.com</a>
-            <a class="contact-pill" href="https://github.com/connection-games/WifiBillionare/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>
+            <a class="contact-pill" href="https://github.com/connection-games/WifiBillionaire/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>
           </div>
         </div>`;
     }
@@ -411,7 +470,7 @@ WB.UI = (function () {
   }
 
   // ---------- ⭐ "Do you like the game?" ----------
-  const REPO_URL = "https://github.com/connection-games/WifiBillionare";
+  const REPO_URL = "https://github.com/connection-games/WifiBillionaire";
   function openExternal(url) { try { window.open(url, "_blank", "noopener"); } catch (e) {} }
   function showLikePrompt() {
     openModal(`
@@ -492,17 +551,27 @@ WB.UI = (function () {
   // ============================================================ Admin (hidden)
   // Tap the "General" settings tab 5× → password → broadcast events to all players.
   let adminTaps = 0, adminTapAt = 0, lastBroadcastId = 0;
-  const ADMIN_PW = "Sextonfem62";
+  // The admin password is never stored in plaintext (this file is publicly
+  // readable on GitHub Pages / CrazyGames). We keep only a one-way SHA-256
+  // hash and compare against the hash of what's typed. Real broadcast security
+  // is enforced server-side by the Firestore rules — see CONTRIBUTING.md.
+  const ADMIN_PW_HASH = "1a71cebced4ef24443af896ef6077624bb963501057102afd5a0e70f4f57e914";
+  async function sha256Hex(str) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
   function bumpAdminTap() {
     const t = Date.now();
     if (t - adminTapAt > 2500) adminTaps = 0;
     adminTapAt = t; adminTaps++;
     if (adminTaps >= 5) { adminTaps = 0; setTimeout(openAdminGate, 120); }
   }
-  function openAdminGate() {
+  async function openAdminGate() {
     const pw = prompt("🔒 Admin access — password:");
     if (pw == null) return;
-    if (pw === ADMIN_PW) showAdminPanel();
+    let ok = false;
+    try { ok = (await sha256Hex(pw)) === ADMIN_PW_HASH; } catch (e) { ok = false; }
+    if (ok) showAdminPanel();
     else toast("⛔ Wrong password.", "bad");
   }
   function broadcastBoost(mult, sec, label) {
@@ -2180,6 +2249,7 @@ WB.UI = (function () {
       ? "Okay. New plan. I'm going to get rich on the internet. From this bedroom. With this WiFi."
       : "Right. Where was I? Ah yes — getting rich.");
     scheduleThoughts();
+    maybeDailyReward(); // come-back-daily cash bonus (waits for any onboarding/tutorial modal)
 
     setInterval(renderHud, 200);
     setInterval(bubbleTrack, 120); // thought bubble follows him around the room

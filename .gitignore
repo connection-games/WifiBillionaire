@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# CrazyGames-only build — kept local, never pushed to GitHub.
+crazy games version/
 build/win/
 build/win-staging/
 build/AppIcon.iconset/

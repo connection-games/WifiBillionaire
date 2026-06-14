@@ -1,6 +1,6 @@
 {
   "name": "wifi-billionaire",
-  "version": "6.5.4",
+  "version": "6.6.0",
   "productName": "WiFi Billionaire",
   "description": "WiFi Billionaire \u2014 an idle/life simulator by Connection Games.",
   "author": "Connection Games",
@@ -43,7 +43,7 @@
       {
         "provider": "github",
         "owner": "connection-games",
-        "repo": "WifiBillionare",
+        "repo": "WifiBillionaire",
         "releaseType": "release"
       }
     ],

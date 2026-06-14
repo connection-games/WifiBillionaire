@@ -101,7 +101,7 @@ function createWindow() {
 // Windows installs via electron-updater (works unsigned). macOS cannot use
 // electron-updater without an Apple Developer ID signature, so it self-updates:
 // download release zip -> verify sha512 -> swap .app -> relaunch.
-const UPDATE_BASE = 'https://github.com/connection-games/WifiBillionare/releases/latest/download/';
+const UPDATE_BASE = 'https://github.com/connection-games/WifiBillionaire/releases/latest/download/';
 
 function sendStatus(win, payload) {
   if (win && !win.isDestroyed()) win.webContents.send('updater:status', payload);

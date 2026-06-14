@@ -1,0 +1,47 @@
+name: Deploy to GitHub Pages
+
+# Publishes the browser version of the game (index.html + css/ + js/) to GitHub
+# Pages on every push to main. The Electron build files in the repo are ignored —
+# only the static web assets are deployed.
+#
+# One-time setup: repo Settings → Pages → Build and deployment → Source:
+# "GitHub Actions". The game is then live at
+# https://connection-games.github.io/WifiBillionaire/
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer pushes cancel in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble static web build
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r css js _site/
+          touch _site/.nojekyll   # serve files verbatim, skip Jekyll processing
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
