@@ -892,6 +892,19 @@ html[data-theme="dark"] #notif-btn { background: #2c2c2e; border-color: var(--bo
   background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--hc); padding: 3px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
 }
+/* Underworld category sub-tabs */
+.crime-cats {
+  display: flex; gap: 6px; margin: 14px 0 4px; overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.crime-cats::-webkit-scrollbar { display: none; }
+.crime-cat-chip {
+  flex: 0 0 auto; background: var(--panel2); border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--muted); padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap; transition: transform .12s ease, background .15s ease;
+}
+.crime-cat-chip:hover { transform: translateY(-1px); }
+.crime-cat-chip.active { background: #ff453a; color: #fff; border-color: #ff453a; box-shadow: 0 4px 12px rgba(255, 69, 58, 0.35); }
 .heat-row { display: flex; align-items: baseline; gap: 5px; margin-top: 9px; }
 .heat-num { font-size: 30px; font-weight: 800; letter-spacing: -1.2px; font-variant-numeric: tabular-nums; }
 .heat-cap { font-size: 11px; color: #98a0b4; font-weight: 600; }
@@ -1553,6 +1566,26 @@ html[data-theme="dark"] .crime-btn:hover { background: rgba(41, 151, 255, 0.24);
 .fr-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fr-net { font-weight: 800; color: var(--green); font-size: 12px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .fr-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+/* friends section — richer detail */
+.fr-hero {
+  background: linear-gradient(135deg, rgba(52,199,89,0.10), rgba(10,132,255,0.10));
+  border: 1px solid var(--border-soft); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px;
+}
+.fr-hero-top { display: flex; align-items: baseline; justify-content: space-between; }
+.fr-hero-net { font-size: 22px; font-weight: 800; letter-spacing: -0.6px; color: var(--green); font-variant-numeric: tabular-nums; }
+.fr-hero-rank { font-size: 12px; font-weight: 800; color: var(--muted); }
+.fr-hero-sub { font-size: 11px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+.fr-rank { font-size: 10px; font-weight: 800; color: var(--muted); width: 16px; text-align: center; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.fr-badges { display: inline-flex; gap: 4px; margin-left: 5px; vertical-align: middle; }
+.fr-badge {
+  font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 999px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--muted);
+}
+.fr-badge.gold { color: #ffd60a; border-color: rgba(255,214,10,0.3); }
+.fr-jail { font-size: 12px; }
+.fr-row.jailed { border-color: rgba(255,69,58,0.4); background: rgba(255,69,58,0.06); }
+.btn.tiny.fr-bail { background: #ff453a; color: #fff; animation: frBailPulse 1.6s ease-in-out infinite; }
+@keyframes frBailPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,69,58,0.5); } 50% { box-shadow: 0 0 0 5px rgba(255,69,58,0); } }
 .btn.tiny { padding: 5px 8px; font-size: 13px; border-radius: 9px; }
 /* chat */
 .chat-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 14px; }

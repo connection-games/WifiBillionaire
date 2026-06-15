@@ -257,6 +257,12 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.9.0 — Crime Wave + a tighter crew", items: [
+      "🌆 The Underworld is now sorted into tabs: 🧤 Street, 💬 Scams, 💻 Hacking, 🎩 Fraud, 📦 Smuggling and 🔫 Robberies.",
+      "🦹 TONS more crimes — 46 in total — from pickpocketing and vending-machine raids all the way up to a Museum Heist and the Federal Reserve Job.",
+      "⚖️ Fixed bailing a friend: you now see exactly when a friend's locked up and their real bail amount — one tap pays it and frees them instantly.",
+      "👥 Richer Friends list: your rank among your crew, each friend's era + rebirth badges, and a 🔒 flag (with a pulsing bail button) when someone's in jail.",
+    ]},
     { v: "v6.8.0 — The Big One: more action, more to do, more happening", items: [
       "🎬 SIX new cutscenes: cruise in your car, throw a yacht party, watch a post go viral, a cop car crawling past, a full police RAID, and a shopping-spree montage.",
       "🛍️ USE your toys! Owned cars, hot tubs, consoles, yachts and more now have a tap-to-use action — go for a drive, throw a party, crush a workout — for real on-demand boosts, not just passive stats.",
@@ -1277,6 +1283,22 @@ WB.UI = (function () {
   // ============================================================ 👥 Friends / Profile
   const social = { friends: [], requests: [], view: "list", chatWith: null, unsubFriends: null, unsubReq: null, unsubInbox: null, unsubChat: null };
   function socialName() { return playerName(); }
+  // Score row incl. live jail status, so friends can see you're locked up and
+  // bail you out for the exact amount.
+  function scorePayload() {
+    const jailed = WB.CRIME && WB.CRIME.inPrison();
+    return {
+      name: playerName(), netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era,
+      jailedUntil: jailed ? Date.now() + WB.CRIME.prisonLeft() : 0,
+      bail: jailed ? Math.floor(WB.CRIME.bailCost()) : 0,
+    };
+  }
+  function pushScore() { if (WB.CLOUD && WB.CLOUD.enabled) WB.CLOUD.submitScore(scorePayload()); }
+  let lastJailedState = false; // push score the instant you're jailed / freed
+  function watchJailForCloud() {
+    const j = !!(WB.CRIME && WB.CRIME.inPrison());
+    if (j !== lastJailedState) { lastJailedState = j; pushScore(); }
+  }
   function profileOpen() { return modalIsOpen && !!$("profile-body"); }
 
   // global listeners (run for the whole session): incoming requests + gift inbox
@@ -1292,10 +1314,19 @@ WB.UI = (function () {
   function applyGift(g) {
     WB.CLOUD.clearInbox(g.id);
     const amt = g.amount || 0;
-    if (g.type === "bail" && WB.CRIME && WB.CRIME.inPrison()) {
-      WB.CRIME.crimeState().prisonUntil = 0;
-      WB.GAME.earn(amt);
-      toast(`⚖️ ${g.fromName} ${WB.t("bailed you out of jail!")} (+${WB.fmt(amt, true)})`, "good");
+    if (g.type === "bail") {
+      if (WB.CRIME && WB.CRIME.inPrison()) {
+        WB.CRIME.crimeState().prisonUntil = 0;          // freed!
+        if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("release");
+        hidePrison();
+        pushScore();                                    // clear my jail status on the cloud right away
+        renderHud(); renderTab(true);
+        toast(`⚖️ ${g.fromName} ${WB.t("bailed you out of jail!")} 🙏`, "good");
+      } else {
+        // someone tried to bail you but you're already out — keep it as a kind gift
+        WB.GAME.earn(amt);
+        toast(`💸 ${g.fromName} ${WB.t("sent you")} ${WB.fmt(amt, true)}!`, "good");
+      }
     } else if (g.type === "heist") {
       WB.GAME.earn(amt);
       toast(`🤝 ${g.fromName} ${WB.t("cut you in on")} ${esc(g.job || "a job")} — +${WB.fmt(amt, true)}!`, "good");
@@ -1389,16 +1420,27 @@ WB.UI = (function () {
     if (social.unsubFriends) { social.unsubFriends(); social.unsubFriends = null; }
     if (social.unsubChat) { social.unsubChat(); social.unsubChat = null; }
   }
-  function frRow(name, net, uid, online, extraClass, nameExtra) {
+  function frBadges(f) {
+    if (!f) return "";
+    const b = [];
+    const ERAS = WB.DATA && WB.DATA.ERAS;
+    if (f.era != null && ERAS && ERAS[f.era]) b.push(`<span class="fr-badge" title="${esc(ERAS[f.era].name)}">${ERAS[f.era].year}</span>`);
+    if (f.prestige) b.push(`<span class="fr-badge gold" title="Rebirths">♻️${f.prestige}</span>`);
+    return b.length ? `<span class="fr-badges">${b.join("")}</span>` : "";
+  }
+  function frRow(name, net, uid, online, extraClass, nameExtra, f, rank) {
+    const jailed = f && f.jailedUntil && f.jailedUntil > Date.now();
+    const bail = jailed ? Math.floor(f.bail || 0) : 0;
     return `
-      <div class="fr-row ${extraClass || ""}">
+      <div class="fr-row ${extraClass || ""}${jailed ? " jailed" : ""}">
+        ${rank ? `<span class="fr-rank">${rank}</span>` : ""}
         <span class="fr-dot ${online ? "on" : ""}"></span>
-        <span class="fr-name">${esc(name)}${nameExtra || ""}</span>
+        <span class="fr-name">${esc(name)}${nameExtra || ""}${frBadges(f)}${jailed ? ` <span class="fr-jail" title="Locked up">🔒</span>` : ""}</span>
         <span class="fr-net">${net != null ? WB.fmt(net, true) : "—"}</span>
         <span class="fr-actions">
           <button class="btn tiny" data-fr="chat" data-uid="${uid}" data-name="${esc(name)}" title="Chat">💬</button>
           <button class="btn tiny" data-fr="trade" data-uid="${uid}" data-name="${esc(name)}" title="Send money">🤝</button>
-          <button class="btn tiny" data-fr="bail" data-uid="${uid}" data-name="${esc(name)}" title="Bail out">⚖️</button>
+          ${jailed ? `<button class="btn tiny fr-bail" data-fr="bail" data-uid="${uid}" data-name="${esc(name)}" data-bail="${bail}" title="Bail out for ${WB.fmt(bail, true)}">⚖️</button>` : ""}
         </span></div>`;
   }
   function renderFriendsView() {
@@ -1414,9 +1456,17 @@ WB.UI = (function () {
     // Adam: your built-in friend, always at the top. 🐐
     const a = adamFriend();
     const adamRow = frRow("Adam", a.netWorth, ADAM_UID, true, "fr-adam", ` <span class="fr-bestie">🐐 ${WB.t("bestie")}</span>${adamUnread ? ` <span class="fr-unread">${adamUnread}</span>` : ""}`);
-    const real = social.friends.map(f => frRow(f.name, f.netWorth, f.uid, f.online)).join("");
+    const real = social.friends.map((f, i) => frRow(f.name, f.netWorth, f.uid, f.online, "", "", f, i + 1)).join("");
     const onlineCount = social.friends.filter(f => f.online).length + 1; // +1 for Adam, always online
+    // your standing among your crew
+    const myNet = WB.GAME.netWorth();
+    const myRank = social.friends.filter(f => (f.netWorth || 0) > myNet).length + 1;
+    const jailedFriends = social.friends.filter(f => f.jailedUntil && f.jailedUntil > Date.now()).length;
     v.innerHTML = `
+      <div class="fr-hero">
+        <div class="fr-hero-top"><span class="fr-hero-net">${WB.fmt(myNet, true)}</span><span class="fr-hero-rank">#${myRank} ${WB.t("of")} ${social.friends.length + 1}</span></div>
+        <div class="fr-hero-sub">🟢 ${onlineCount} ${WB.t("online")}${jailedFriends ? ` · 🔒 ${jailedFriends} ${WB.t("locked up — bail 'em out")}` : ""}</div>
+      </div>
       <div class="fr-add">
         <input id="fr-input" placeholder="${WB.t("Friend's username…")}" maxlength="20" autocomplete="off">
         <button class="btn primary small" data-fr="add">${WB.t("Add")}</button>
@@ -1424,7 +1474,7 @@ WB.UI = (function () {
       ${reqs ? `<div class="fr-section">${WB.t("Requests")}</div>${reqs}` : ""}
       <div class="fr-section">${WB.t("Friends")} · ${onlineCount} ${WB.t("online")}</div>
       <div class="fr-list">${adamRow}${real || (social.friends.length ? "" : `<div class="fr-empty">${WB.t("Add real players by username — Adam's always here for you. 🐐")}</div>`)}</div>`;
-    v.querySelectorAll("[data-fr]").forEach(b => b.onclick = () => onFriendAction(b.dataset.fr, b.dataset.uid, b.dataset.name));
+    v.querySelectorAll("[data-fr]").forEach(b => b.onclick = () => onFriendAction(b.dataset.fr, b.dataset.uid, b.dataset.name, b.dataset.bail));
     const inp = $("fr-input"); if (inp) inp.onkeydown = e => { if (e.key === "Enter") onFriendAction("add"); };
   }
 
@@ -1483,7 +1533,7 @@ WB.UI = (function () {
     $("fr-chat-input").onkeydown = e => { if (e.key === "Enter") send(); };
     setTimeout(() => { const i = $("fr-chat-input"); if (i) i.focus(); }, 50);
   }
-  async function onFriendAction(kind, uid, name) {
+  async function onFriendAction(kind, uid, name, bail) {
     const C = WB.CLOUD;
     if (uid === ADAM_UID) { // 🐐 Adam is local — handle him without the cloud
       if (kind === "chat") { social.view = "chat"; social.chatWith = { uid: ADAM_UID, name: "Adam" }; renderFriendsView(); }
@@ -1507,7 +1557,11 @@ WB.UI = (function () {
     else if (kind === "dec") { await C.declineRequest(uid); }
     else if (kind === "chat") { social.view = "chat"; social.chatWith = { uid, name }; renderFriendsView(); }
     else if (kind === "trade") socialAmountDialog("trade", uid, name);
-    else if (kind === "bail") socialAmountDialog("bail", uid, name);
+    else if (kind === "bail") {
+      const amt = Math.floor(Number(bail) || 0);
+      if (amt <= 0) { toast(`🤷 ${esc(name)} ${WB.t("isn't in jail right now.")}`, "bad"); return; }
+      confirmBailDialog(uid, name, amt);
+    }
   }
   function renderChat(v, friend) {
     v.innerHTML = `
@@ -1552,8 +1606,69 @@ WB.UI = (function () {
     };
     setTimeout(() => { const i = $("amt-in"); if (i) { i.focus(); i.select(); } }, 50);
   }
+  // Bail is a fixed, known amount (the friend publishes it) — no guessing.
+  function confirmBailDialog(uid, name, amt) {
+    const ov = document.createElement("div");
+    ov.className = "amt-dialog";
+    ov.innerHTML = `<div class="amt-card">
+      <div class="amt-ico">⚖️</div>
+      <h3>${WB.t("Bail out")} ${esc(name)}?</h3>
+      <p class="muted">${WB.t("Their bail is")} <b>${WB.fmt(amt, true)}</b> — ${WB.t("it leaves your wallet and frees them instantly.")}</p>
+      <div class="amt-row"><button class="btn subtle" id="bail-cancel">${WB.t("Cancel")}</button><button class="btn primary" id="bail-go">⚖️ ${WB.t("Bail out")} · ${WB.fmt(amt, true)}</button></div>
+    </div>`;
+    $("modal-content").appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector("#bail-cancel").onclick = close;
+    ov.querySelector("#bail-go").onclick = async () => {
+      if (st.money < amt) { toast(WB.t("You can't afford their bail."), "bad"); return; }
+      st.money -= amt;
+      await WB.CLOUD.sendGift(uid, "bail", amt, socialName());
+      toast(`⚖️ ${WB.t("You bailed")} ${esc(name)} ${WB.t("out!")} (−${WB.fmt(amt, true)})`, "good");
+      close();
+    };
+  }
 
   const crimeDescCache = {}; // fill() once per crime — random slot-fills would re-randomize every render
+  let crimeCat = "street";   // which Underworld category sub-tab is open
+  function crimeQuickCard(cr, C, jailed) {
+    const el = C.eligible(cr);
+    const chance = cr.launder ? null : Math.round(C.catchChance(cr) * 100);
+    const riskCol = chance === null ? "#34c759" : chance > 40 ? "#ff453a" : chance > 22 ? "#ff9f0a" : "#34c759";
+    if (!crimeDescCache[cr.id]) crimeDescCache[cr.id] = WB.THOUGHTS.fill(cr.desc);
+    return `
+      <div class="crime-card ${el.ok ? "" : "locked"}">
+        <div class="crime-card-head"><span class="crime-ico">${cr.icon}</span>
+          <span class="risk-pill" style="--rp:${riskCol}">${chance === null ? "🧼 −" + WB.t("heat") : chance + "% " + WB.t("risk")}</span></div>
+        <b class="crime-name">${WB.t(cr.name)}</b>
+        <div class="crime-desc">${crimeDescCache[cr.id]}</div>
+        <div class="crime-meta">${cr.sentence ? `⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}` : WB.t("Washes your dirty reputation")}</div>
+        ${el.ok
+          ? `<button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="crime" data-key="${cr.id}">${WB.t(cr.launder ? "🧼 Launder" : "Commit")}</button>`
+          : `<div class="crime-lock">🔒 ${el.why}</div>`}
+      </div>`;
+  }
+  function crimeHardCard(cr, C, jailed) {
+    const el = C.eligibleHard(cr);
+    const chance = Math.round(C.catchChance(cr) * 100);
+    const riskCol = chance > 40 ? "#ff453a" : chance > 22 ? "#ff9f0a" : "#34c759";
+    const stake = cr.stake(st);
+    if (!crimeDescCache[cr.id]) crimeDescCache[cr.id] = WB.THOUGHTS.fill(cr.desc);
+    return `
+      <div class="crime-card hard ${el.ok ? "" : "locked"}">
+        <div class="crime-card-head"><span class="crime-ico">${cr.icon}</span>
+          <span class="risk-pill" style="--rp:${riskCol}">${chance}% ${WB.t("risk")}</span></div>
+        <b class="crime-name">${WB.t(cr.name)}</b>
+        <div class="crime-desc">${crimeDescCache[cr.id]}</div>
+        <div class="crime-stake">🎟️ ${WB.t("Stake")} ${WB.fmt(stake, true)}${cr.reqCar ? ` · 🚗 ${WB.t("car")}` : ""}</div>
+        <div class="crime-meta">⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}</div>
+        ${el.ok
+          ? `<div class="hard-btns">
+               <button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="hardjob" data-key="${cr.id}">${WB.t("Solo")}</button>
+               <button class="btn crime-btn coop ${jailed ? "locked" : ""}" data-act="heistfriend" data-key="${cr.id}">🤝 ${WB.t("Crew")}</button>
+             </div>`
+          : `<div class="crime-lock">🔒 ${el.why}</div>`}
+      </div>`;
+  }
   function tabCrime() {
     const C = WB.CRIME, c = C.crimeState();
     const heat = Math.round(c.heat);
@@ -1578,63 +1693,38 @@ WB.UI = (function () {
         </div>`;
     }
 
-    const avatars = (WB.SCAM ? WB.SCAM.VICTIMS : []).map(v => `<span title="${v.name}">${v.avatar}</span>`).join("");
-    html += `
-      <div class="crime-feature">
-        <div class="crime-feature-main">
-          <b>💬 Scam Sim — Texting</b>
-          <div class="crime-feature-sub">Chat up fictional marks, watch their scare meter, cash out before they snap.
-            ${WB.aiEnabled() ? "🟢 AI victims active." : "⚪ Offline victims — add an OpenAI key in Settings for smart ones."}</div>
-          <div class="victim-row">${avatars}</div>
-        </div>
-        <button class="btn primary ${jailed ? "locked" : ""}" data-act="openscam">Open<br>Messages</button>
-      </div>`;
+    // category sub-tabs
+    const cats = C.CATS || [];
+    if (!cats.some(x => x.id === crimeCat)) crimeCat = cats[0] ? cats[0].id : "street";
+    html += `<div class="crime-cats">` + cats.map(cat =>
+      `<button class="crime-cat-chip${crimeCat === cat.id ? " active" : ""}" data-act="crimecat" data-key="${cat.id}">${cat.icon} ${WB.t(cat.name)}</button>`
+    ).join("") + `</div>`;
 
-    html += `<div class="section-title">🦹 Quick Jobs</div><div class="crime-grid">`;
-    C.CRIMES.forEach(cr => {
-      const el = C.eligible(cr);
-      const chance = cr.launder ? null : Math.round(C.catchChance(cr) * 100);
-      const riskCol = chance === null ? "#34c759" : chance > 40 ? "#ff453a" : chance > 22 ? "#ff9f0a" : "#34c759";
-      if (!crimeDescCache[cr.id]) crimeDescCache[cr.id] = WB.THOUGHTS.fill(cr.desc);
+    if (crimeCat === "scams") {
+      const avatars = (WB.SCAM ? WB.SCAM.VICTIMS : []).map(v => `<span title="${v.name}">${v.avatar}</span>`).join("");
       html += `
-        <div class="crime-card ${el.ok ? "" : "locked"}">
-          <div class="crime-card-head"><span class="crime-ico">${cr.icon}</span>
-            <span class="risk-pill" style="--rp:${riskCol}">${chance === null ? "🧼 −" + WB.t("heat") : chance + "% " + WB.t("risk")}</span></div>
-          <b class="crime-name">${WB.t(cr.name)}</b>
-          <div class="crime-desc">${crimeDescCache[cr.id]}</div>
-          <div class="crime-meta">${cr.sentence ? `⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}` : WB.t("Washes your dirty reputation")}</div>
-          ${el.ok
-            ? `<button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="crime" data-key="${cr.id}">${WB.t(cr.launder ? "🧼 Launder" : "Commit")}</button>`
-            : `<div class="crime-lock">🔒 ${el.why}</div>`}
+        <div class="crime-feature">
+          <div class="crime-feature-main">
+            <b>💬 Scam Sim — Texting</b>
+            <div class="crime-feature-sub">Chat up fictional marks, watch their scare meter, cash out before they snap.
+              ${WB.aiEnabled() ? "🟢 AI victims active." : "⚪ Offline victims — add an OpenAI key in Settings for smart ones."}</div>
+            <div class="victim-row">${avatars}</div>
+          </div>
+          <button class="btn primary ${jailed ? "locked" : ""}" data-act="openscam">Open<br>Messages</button>
         </div>`;
-    });
-    html += `</div>`;
+    }
 
-    // ---- Hard Jobs: stake required, big payouts, solo or with a crew ----
-    html += `<div class="section-title">💰 ${WB.t("Hard Jobs")} <span class="hard-hint">${WB.t("· real stakes, real payouts")}</span></div><div class="crime-grid">`;
-    (C.HARD_CRIMES || []).forEach(cr => {
-      const el = C.eligibleHard(cr);
-      const chance = Math.round(C.catchChance(cr) * 100);
-      const riskCol = chance > 40 ? "#ff453a" : chance > 22 ? "#ff9f0a" : "#34c759";
-      const stake = cr.stake(st);
-      if (!crimeDescCache[cr.id]) crimeDescCache[cr.id] = WB.THOUGHTS.fill(cr.desc);
-      html += `
-        <div class="crime-card hard ${el.ok ? "" : "locked"}">
-          <div class="crime-card-head"><span class="crime-ico">${cr.icon}</span>
-            <span class="risk-pill" style="--rp:${riskCol}">${chance}% ${WB.t("risk")}</span></div>
-          <b class="crime-name">${WB.t(cr.name)}</b>
-          <div class="crime-desc">${crimeDescCache[cr.id]}</div>
-          <div class="crime-stake">🎟️ ${WB.t("Stake")} ${WB.fmt(stake, true)}${cr.reqCar ? ` · 🚗 ${WB.t("car")}` : ""}</div>
-          <div class="crime-meta">⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}</div>
-          ${el.ok
-            ? `<div class="hard-btns">
-                 <button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="hardjob" data-key="${cr.id}">${WB.t("Solo")}</button>
-                 <button class="btn crime-btn coop ${jailed ? "locked" : ""}" data-act="heistfriend" data-key="${cr.id}">🤝 ${WB.t("Crew")}</button>
-               </div>`
-            : `<div class="crime-lock">🔒 ${el.why}</div>`}
-        </div>`;
-    });
-    html += `</div>`;
+    if (crimeCat === "robberies") {
+      html += `<div class="section-title">💰 ${WB.t("Hard Jobs")} <span class="hard-hint">${WB.t("· real stakes, real payouts")}</span></div><div class="crime-grid">`;
+      (C.HARD_CRIMES || []).forEach(cr => { html += crimeHardCard(cr, C, jailed); });
+      html += `</div>`;
+    } else {
+      const catName = (cats.find(x => x.id === crimeCat) || {}).name || "Quick";
+      const list = C.CRIMES.filter(cr => cr.cat === crimeCat || cr.launder);
+      html += `<div class="section-title">🦹 ${WB.t(catName)} ${WB.t("Jobs")}</div><div class="crime-grid">`;
+      list.forEach(cr => { html += crimeQuickCard(cr, C, jailed); });
+      html += `</div>`;
+    }
     return html;
   }
   function doHardJob(id, withFriend, friend) {
@@ -1778,6 +1868,7 @@ WB.UI = (function () {
     else if (act === "trackchal") { toggleTrackChallenge(key); return; }
     else if (act === "hardjob") { doHardJob(key, false); return; }
     else if (act === "heistfriend") { openHeistPicker(key); return; }
+    else if (act === "crimecat") { crimeCat = key; }
     else if (act === "lbrefresh") { loadLeaderboard(); return; }
     else if (act === "openscam") WB.SCAM.open();
     else if (act === "dopost") { const r = WB.ACTIONS.start("social"); if (r && r.refused) toast("😮‍💨 " + r.refused, "bad"); }
@@ -2324,15 +2415,13 @@ WB.UI = (function () {
     setInterval(bubbleTrack, 120); // thought bubble follows him around the room
     setInterval(() => renderTab(false), 600);
 
-    // cloud sync: heartbeat presence + push your score for the global leaderboard
+    // cloud sync: heartbeat presence + push your score (incl. jail status) for the leaderboard
     const cloudSync = () => {
-      if (WB.CLOUD && WB.CLOUD.enabled) {
-        WB.CLOUD.heartbeat(playerName());
-        WB.CLOUD.submitScore({ name: playerName(), netWorth: WB.GAME.netWorth(), prestige: st.prestige.count, era: st.era });
-      }
+      if (WB.CLOUD && WB.CLOUD.enabled) { WB.CLOUD.heartbeat(playerName()); pushScore(); }
     };
     window.addEventListener("wb-cloud-ready", () => setTimeout(cloudSync, 1500));
     setInterval(cloudSync, 60000);
+    setInterval(watchJailForCloud, 1500); // push score the instant you're jailed / bailed
     startSocial(); // friend-request + gift listeners (run all session)
     setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
     // listen for admin broadcasts (global events) — apply to this player live

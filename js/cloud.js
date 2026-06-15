@@ -54,7 +54,8 @@ async function init() {
 Cloud.ready = init();
 
 // upsert this player's row (own doc only). nameLower lets friends find you by name.
-Cloud.submitScore = async function ({ name, netWorth, prestige, era }) {
+// jailedUntil + bail let friends see you're locked up and bail you for the exact amount.
+Cloud.submitScore = async function ({ name, netWorth, prestige, era, jailedUntil, bail }) {
   if (!Cloud.enabled || !db) return false;
   const n = String(name || "Anon").slice(0, 24);
   try {
@@ -62,6 +63,8 @@ Cloud.submitScore = async function ({ name, netWorth, prestige, era }) {
       name: n, nameLower: n.toLowerCase(),
       netWorth: Math.max(0, Math.floor(netWorth || 0)),
       prestige: prestige || 0, era: era || 0, ts: serverTimestamp(),
+      jailedUntil: Math.max(0, Math.floor(jailedUntil || 0)),
+      bail: Math.max(0, Math.floor(bail || 0)),
     }, { merge: true });
     return true;
   } catch (e) { Cloud.lastError = e.message; return false; }
