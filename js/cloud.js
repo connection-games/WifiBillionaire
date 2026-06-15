@@ -348,5 +348,24 @@ Cloud.fetchOnlinePlayers = async function (n) {
   } catch (e) { Cloud.lastError = e.message; return []; }
 };
 
+// ============================================================ ADMIN: feedback + replies
+// Read the latest feedback/support messages (admin Control Room).
+Cloud.fetchFeedback = async function (n) {
+  if (!Cloud.enabled || !db) return [];
+  try {
+    const snap = await getDocs(query(collection(db, "feedback"), orderBy("ts", "desc"), limit(n || 40)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) { Cloud.lastError = e.message; return []; }
+};
+// Admin → player: drop a reply into their inbox (the player sees a dev-message toast).
+Cloud.sendAdminReply = async function (uid, text, fromName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "scores", uid, "inbox"),
+      { type: "devreply", text: String(text || "").slice(0, 400), fromName: String(fromName || "Dev").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
 WB.CLOUD = Cloud;
 window.dispatchEvent(new Event("wb-cloud-ready"));

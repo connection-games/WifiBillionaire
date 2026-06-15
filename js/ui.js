@@ -22,7 +22,10 @@ WB.UI = (function () {
     if (WB.ROOM.cutActive && WB.ROOM.cutActive()) { el.classList.remove("show"); return; }
     const cw = frame.clientWidth; // frame is exactly 16:9 — canvas fills it
     const x = WB.ROOM.charX() * cw;
-    el.style.left = Math.max(140, Math.min(cw - 140, x)) + "px";
+    // clamp by the bubble's REAL half-width so the full sentence always stays
+    // inside the room box — even when he's asleep in a corner (was clipping).
+    const half = Math.min(el.offsetWidth / 2, cw / 2 - 6) + 6;
+    el.style.left = Math.max(half, Math.min(cw - half, x)) + "px";
   }
   function bubble(text) {
     if (!text || !getSetting("bubbles")) return;
@@ -266,6 +269,13 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.1.0 — Rebirth, socials & a crew shake-up", items: [
+      "♻️ Rebirth now FULLY resets your empire — and springs you straight out of jail, instantly.",
+      "🌐 NEW: Follow Us links (TikTok, Discord, GitHub, itch.io) in Settings → About, a 'Message the developer' support button, and a 'follow us for a prize' bonus.",
+      "🚔 A failed crew heist now jails the WHOLE crew — and you can't recruit someone who's locked up (bail them out right from the lobby). No random popups while you're in jail.",
+      "💬 Fixed: the thought bubble no longer gets cut off — full sentence stays in the room, even while he's asleep.",
+      "🤖 The autoclicker popup now only triggers on an actual autoclicker, not fast hand-clicking. ✨ Cleaner crime card spacing.",
+    ]},
     { v: "v7.0.1 — Smoother start (player feedback 🙏)", items: [
       "🎓 The intro tutorial is no longer buried under level-up popups — level-ups stay quiet while you're reading it, and a burst of levels now shows as a single tidy toast.",
       "🪟 Windows: smoother installer — it now installs just for you with no admin prompt and no confusing folder step, so it launches reliably.",
@@ -447,6 +457,14 @@ WB.UI = (function () {
       "v2: Manual actions, Apple-style UI, pixel-art rooms.",
     ]},
   ];
+  // Social links. NOTE: GitHub + itch are live; replace the TikTok and Discord
+  // URLs below with your real ones (the labels are already what you asked for).
+  const SOCIALS = [
+    { id: "tiktok",  icon: "🎵", name: "TikTok",  label: "Wifi Billionaire Game",     url: "https://www.tiktok.com/@wifibillionairegame" },
+    { id: "discord", icon: "💬", name: "Discord", label: "Join Our Discord",          url: "https://discord.gg/wifibillionaire" },
+    { id: "github",  icon: "🐙", name: "GitHub",  label: "Wifi Billionaire on GitHub", url: "https://github.com/connection-games/WifiBillionaire" },
+    { id: "itch",    icon: "🎮", name: "itch.io", label: "Wifi Billionaire on itch.io", url: "https://wifi-billionare.itch.io/wifi-billionaire" },
+  ];
   function settingsBody() {
     if (settingsTab === "about") {
       return `
@@ -456,12 +474,20 @@ WB.UI = (function () {
           <p>We believe great games should be accessible to everyone — not locked behind paywalls or closed systems.</p>
         </div>
         <div class="about-card">
-          <h3>💌 Contact Us</h3>
-          <p>Have a tip, suggestion, or idea to make the game better? We'd love to hear from you. Reach out to us at:</p>
+          <h3>🌐 Follow Us</h3>
+          <p>Updates, behind-the-scenes and giveaways — come hang out:</p>
+          <div class="social-row">
+            ${SOCIALS.map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}
+          </div>
+        </div>
+        <div class="about-card">
+          <h3>💌 Contact &amp; Support</h3>
+          <p>Have a tip, a bug, or need a hand? Reach the dev directly:</p>
           <div class="contact-row">
             <a class="contact-pill" href="mailto:cntngames96@gmail.com" target="_blank" rel="noopener">📧 cntngames96@gmail.com</a>
             <a class="contact-pill" href="https://github.com/connection-games/WifiBillionaire/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>
           </div>
+          <button class="btn primary wide" id="support-btn" style="margin-top:10px">🆘 ${WB.t("Message the developer")}</button>
         </div>`;
     }
     if (settingsTab === "updates") {
@@ -555,6 +581,32 @@ WB.UI = (function () {
       toast(WB.t("🙏 Thank you — we read every one."), "good");
     };
   }
+  // "Follow us for a prize" — shows once, rewards tapping any social link.
+  function showSocialPrize() {
+    const reward = Math.max(5000, Math.floor(WB.GAME.incomePerSec() * 60 * 30)); // ~30 min of income
+    openModal(`
+      <div class="ev-icon">🎁</div>
+      <h2>${WB.t("Follow us for a prize!")}</h2>
+      <p>${WB.t("Tap any of our socials and claim a fat")} <b>${WB.fmt(reward, true)}</b> ${WB.t("bonus — on the house.")}</p>
+      <div class="social-row">${SOCIALS.map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener" data-social="1"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}</div>
+      <button class="btn subtle wide" id="social-skip" style="margin-top:10px">${WB.t("Maybe later")}</button>`);
+    let claimed = false;
+    const claim = () => {
+      if (claimed) return; claimed = true;
+      try { localStorage.setItem("wb_social_claimed", "1"); } catch (e) {}
+      WB.GAME.earn(reward); confetti();
+      toast(`🎁 ${WB.t("Thanks for the follow! Here's")} ${WB.fmt(reward, true)}!`, "good");
+      setTimeout(closeModal, 500);
+    };
+    $("modal-content").querySelectorAll("[data-social]").forEach(a => a.addEventListener("click", claim));
+    $("social-skip").onclick = closeModal;
+  }
+  function maybeSocialPrize() {
+    let done = false; try { done = !!localStorage.getItem("wb_social_claimed"); } catch (e) {}
+    if (done || uiBusy() || (WB.CRIME && WB.CRIME.inPrison())) return;
+    if (!st || st.stats.playTimeSec < 150) return;
+    showSocialPrize();
+  }
   // ask once, after the player has settled in (not during tutorial/onboarding)
   function maybeAskLike() {
     let asked = false;
@@ -590,6 +642,7 @@ WB.UI = (function () {
       if ($("set-export")) $("set-export").onclick = () => { $("save-blob").value = WB.GAME.exportSave(); $("save-blob").select(); };
       if ($("set-import")) $("set-import").onclick = () => { if (!WB.GAME.importSave($("save-blob").value)) alert("Invalid save data."); };
       if ($("set-reset")) $("set-reset").onclick = () => { if (confirm("Delete EVERYTHING including prestige? No takebacks.")) WB.GAME.hardReset(); };
+      if ($("support-btn")) $("support-btn").onclick = openSupportDialog;
     }
     $("modal-content").querySelectorAll("[data-settab]").forEach(b => b.onclick = () => {
       if (b.dataset.settab === "general") bumpAdminTap(); // 5 taps → admin gate
@@ -599,6 +652,30 @@ WB.UI = (function () {
     });
     bindBody();
     $("set-close").onclick = closeModal;
+  }
+  // Direct line to the dev — lands in the cloud feedback the admin can read.
+  function openSupportDialog() {
+    const ov = document.createElement("div");
+    ov.className = "amt-dialog";
+    ov.innerHTML = `<div class="amt-card">
+      <div class="amt-ico">🆘</div>
+      <h3>${WB.t("Message the developer")}</h3>
+      <p class="muted">${WB.t("Bug, idea, or just saying hi — it goes straight to the dev.")}</p>
+      <textarea id="support-text" class="set-input" placeholder="${WB.t("Type your message…")}" style="min-height:90px"></textarea>
+      <div class="amt-row"><button class="btn subtle" id="support-cancel">${WB.t("Cancel")}</button><button class="btn primary" id="support-send">📨 ${WB.t("Send")}</button></div>
+    </div>`;
+    $("modal-content").appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector("#support-cancel").onclick = close;
+    ov.querySelector("#support-send").onclick = () => {
+      const t = (ov.querySelector("#support-text").value || "").trim();
+      if (!t) { toast(WB.t("Write a message first."), "bad"); return; }
+      if (WB.CLOUD && WB.CLOUD.enabled && WB.CLOUD.submitFeedback) WB.CLOUD.submitFeedback(["support", "from:" + playerName()], t);
+      else { toast("☁️ " + WB.t("You're offline — can't reach the dev right now."), "bad"); return; }
+      toast("📨 " + WB.t("Sent to the dev — thank you!"), "good");
+      close();
+    };
+    setTimeout(() => { const i = $("support-text"); if (i) i.focus(); }, 50);
   }
 
   // ============================================================ Admin (hidden)
@@ -684,6 +761,12 @@ WB.UI = (function () {
           <button class="btn admin-btn" data-loc="heist">🎬 Heist win</button>
           <button class="btn admin-btn" data-loc="bust">💥 Heist bust</button>
         </div>
+        <div class="admin-sec">📨 Players & feedback</div>
+        <div class="admin-row">
+          <button class="btn" id="adm-feedback">📨 Feedback &amp; support</button>
+          <button class="btn" id="adm-online">🟢 Online players</button>
+        </div>
+        <div id="adm-view" class="admin-view"></div>
         <button class="btn primary wide" id="adm-close" style="margin-top:16px">Close</button>
       </div>`);
     $("modal-content").querySelectorAll("[data-bc]").forEach(b => b.onclick = () => {
@@ -700,7 +783,44 @@ WB.UI = (function () {
       } else toast("☁️ Cloud offline.", "bad");
     };
     $("modal-content").querySelectorAll("[data-loc]").forEach(b => b.onclick = () => adminLocal(b.dataset.loc));
+    $("adm-feedback").onclick = adminLoadFeedback;
+    $("adm-online").onclick = adminLoadOnline;
     $("adm-close").onclick = closeModal;
+  }
+  function adminLoadOnline() {
+    const v = $("adm-view"); if (!v) return;
+    v.innerHTML = `<div class="muted">${WB.t("Loading…")}</div>`;
+    if (!WB.CLOUD || !WB.CLOUD.fetchOnlinePlayers) { v.innerHTML = `<div class="muted">☁️ Cloud offline.</div>`; return; }
+    WB.CLOUD.fetchOnlinePlayers(60).then(list => {
+      list = list || [];
+      v.innerHTML = `<div class="admin-view-head">🟢 ${list.length + 1} ${WB.t("online")} (${WB.t("incl. you")})</div>` +
+        list.map(p => `<div class="admin-view-row"><b>${esc(p.name || "Anon")}</b></div>`).join("") +
+        (list.length ? "" : `<div class="muted">${WB.t("Just you right now.")}</div>`);
+    });
+  }
+  function adminLoadFeedback() {
+    const v = $("adm-view"); if (!v) return;
+    v.innerHTML = `<div class="muted">${WB.t("Loading…")}</div>`;
+    if (!WB.CLOUD || !WB.CLOUD.fetchFeedback) { v.innerHTML = `<div class="muted">☁️ Cloud offline.</div>`; return; }
+    WB.CLOUD.fetchFeedback(40).then(list => {
+      list = list || [];
+      v.innerHTML = `<div class="admin-view-head">📨 ${list.length} ${WB.t("recent")}</div>` + (list.length
+        ? list.map(f => {
+            const who = (f.reasons || []).find(r => /^from:/.test(r));
+            const name = who ? who.slice(5) : "Anon";
+            const support = (f.reasons || []).includes("support");
+            return `<div class="admin-view-row fb"><div><b>${support ? "🆘 " : "💬 "}${esc(name)}</b><div class="fb-text">${esc(f.text || "(no text)")}</div></div>
+              ${f.uid ? `<button class="btn small adm-reply" data-uid="${esc(f.uid)}" data-name="${esc(name)}">↩︎</button>` : ""}</div>`;
+          }).join("")
+        : `<div class="muted">${WB.t("No feedback yet.")}</div>`);
+      v.querySelectorAll(".adm-reply").forEach(b => b.onclick = () => adminReply(b.dataset.uid, b.dataset.name));
+    });
+  }
+  function adminReply(uid, name) {
+    const text = prompt(`Reply to ${name}:`);
+    if (text == null || !text.trim()) return;
+    if (WB.CLOUD && WB.CLOUD.sendAdminReply) WB.CLOUD.sendAdminReply(uid, text.trim(), playerName());
+    toast(`↩︎ ${WB.t("Reply sent to")} ${esc(name)}`, "good");
   }
   function adminLocal(k) {
     const G = WB.GAME, s = st;
@@ -1340,6 +1460,11 @@ WB.UI = (function () {
   function applyGift(g) {
     WB.CLOUD.clearInbox(g.id);
     if (g.type === "invite") { showInvitePopup(g); return; } // heist-lobby invite → popup
+    if (g.type === "devreply") { // the developer replied to your message
+      toast(`💬 ${esc(g.fromName || "The developer")}: ${esc(g.text || "")}`, "good");
+      pushNotif(`💬 ${WB.t("Reply from the developer")}: ${g.text || ""}`, "good");
+      return;
+    }
     const amt = g.amount || 0;
     if (g.type === "bail") {
       if (WB.CRIME && WB.CRIME.inPrison()) {
@@ -1831,6 +1956,7 @@ WB.UI = (function () {
   }
   function joinLobbyFlow(lobbyId, jobId) {
     if (!WB.CLOUD || !WB.CLOUD.enabled) return;
+    if (WB.CRIME && WB.CRIME.inPrison()) { toast("🚫 " + WB.t("You're in jail — get bailed out before joining a crew."), "bad"); return; }
     WB.CLOUD.joinLobby(lobbyId, playerName()).then(ok => {
       if (!ok) { toast("🚫 " + WB.t("That crew already rolled out."), "bad"); return; }
       resetLobby(); lobby.id = lobbyId; lobby.jobId = jobId; lobby.isHost = false;
@@ -1905,11 +2031,20 @@ WB.UI = (function () {
     }).join("");
     const inSet = new Set(uids), seen = new Set();
     const cands = [];
-    (social.friends || []).filter(f => f.online).forEach(f => cands.push({ uid: f.uid, name: f.name }));
+    (social.friends || []).filter(f => f.online).forEach(f => cands.push({ uid: f.uid, name: f.name, jailedUntil: f.jailedUntil, bail: f.bail }));
     (lobby.online || []).forEach(p => cands.push({ uid: p.uid, name: p.name }));
     const list = cands.filter(c => c.uid && !inSet.has(c.uid) && !seen.has(c.uid) && (seen.add(c.uid), true));
     $("lobby-invites").innerHTML = list.length ? list.map(c => {
-      const ini = (c.name || "?").trim().charAt(0).toUpperCase(), inv = lobby.invited[c.uid];
+      const ini = (c.name || "?").trim().charAt(0).toUpperCase();
+      const jailed = c.jailedUntil && c.jailedUntil > Date.now();
+      if (jailed) { // can't crew with a jailed player — offer to bail them instead
+        return `<div class="lobby-invite-row jailed">
+          <span class="lobby-avatar">${esc(ini)}</span>
+          <span class="lobby-invite-name">🔒 ${esc(c.name)} — ${WB.t("in prison")}</span>
+          <button class="lobby-invite-btn bail" data-bailuid="${esc(c.uid)}" data-bailname="${esc(c.name)}" data-bail="${Math.floor(c.bail || 0)}">⚖️ ${WB.t("Bail out?")}</button>
+        </div>`;
+      }
+      const inv = lobby.invited[c.uid];
       return `<div class="lobby-invite-row">
         <span class="lobby-avatar">${esc(ini)}</span>
         <span class="lobby-invite-name">${esc(c.name)}</span>
@@ -1919,6 +2054,11 @@ WB.UI = (function () {
     $("lobby-invites").querySelectorAll("[data-inv]").forEach(b => b.onclick = () => {
       WB.CLOUD.sendLobbyInvite(b.dataset.inv, lobby.id, lobby.jobId, (lobbyJob() || {}).name || "a heist", playerName());
       lobby.invited[b.dataset.inv] = true; toast(`📨 ${WB.t("Invited")} ${esc(b.dataset.name)}`, "good"); updateLobbyBody();
+    });
+    $("lobby-invites").querySelectorAll("[data-bailuid]").forEach(b => b.onclick = () => {
+      const amt = Math.floor(Number(b.dataset.bail) || 0);
+      if (amt > 0) confirmBailDialog(b.dataset.bailuid, b.dataset.bailname, amt);
+      else toast(`🤷 ${esc(b.dataset.bailname)} ${WB.t("isn't in jail right now.")}`, "bad");
     });
     const myReady = members[me] && members[me].ready;
     let foot = `<button class="lobby-btn ready ${myReady ? "on" : ""}" id="lobby-ready">${myReady ? "✓ " + WB.t("Ready") : WB.t("Ready up")}</button>`;
@@ -1944,7 +2084,7 @@ WB.UI = (function () {
     if (!r || r.refused) { toast("🚫 " + ((r && r.refused) || "Can't start."), "bad"); return; }
     lobby.resolved = true;
     const id = lobby.id;
-    WB.CLOUD.finishLobby(id, { win: r.win, payout: r.win ? r.money : 0, by: playerName(), job: r.job });
+    WB.CLOUD.finishLobby(id, { win: r.win, payout: r.win ? r.money : 0, sentence: r.sentence || 0, by: playerName(), job: r.job });
     if (r.win) uids.forEach(u => { if (u !== WB.CLOUD.uid) WB.CLOUD.sendHeistCut(u, Math.floor(r.money * 0.35), playerName(), r.job); });
     stopLobbyWatch(); closeModal(); resetLobby();
     const reveal = () => { WB.CRIME.finalizeHardJob(r); openResult(r); renderTab(true); renderHud(); };
@@ -1958,7 +2098,11 @@ WB.UI = (function () {
     const win = !!res.win;
     const done = () => {
       if (win) toast(`🤝 ${esc(res.by || "The crew")} ${WB.t("pulled off the")} ${esc(res.job || "job")} — ${WB.t("your cut's on the way!")}`, "good");
-      else toast(`🚔 ${WB.t("The")} ${esc(res.job || "job")} ${WB.t("went bad — the crew scattered.")}`, "bad");
+      else {
+        // a failed heist takes the WHOLE crew down — you're booked too.
+        if (WB.CRIME && !WB.CRIME.inPrison()) WB.CRIME.goToPrison(res.sentence || 300, (res.job || "a heist") + " (crew)", true);
+        toast(`🚔 ${WB.t("The")} ${esc(res.job || "job")} ${WB.t("went bad — the whole crew got nicked.")}`, "bad");
+      }
       renderTab(true); renderHud();
     };
     if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(win ? "heistDuo" : "heistBustDuo", done); else done();
@@ -2562,11 +2706,19 @@ WB.UI = (function () {
     $("hustle-btn").addEventListener("click", e => {
       const t2 = Date.now();
       clickLog.push(t2);
-      if (clickLog.length > 14) clickLog.shift();
-      if (clickLog.length === 14 && t2 - clickLog[0] < 1500 && t2 - lastEgg > 240000 && !uiBusy()) {
-        lastEgg = t2; clickLog = [];
-        showAutoclickerEgg();
-        return;
+      if (clickLog.length > 16) clickLog.shift();
+      // Only flag a GUARANTEED autoclicker: not just fast, but mechanically regular.
+      // A human's click intervals jitter a lot; a clicker's are near-identical.
+      if (clickLog.length === 16 && t2 - lastEgg > 240000 && !uiBusy()) {
+        const iv = [];
+        for (let i = 1; i < clickLog.length; i++) iv.push(clickLog[i] - clickLog[i - 1]);
+        const avg = iv.reduce((a, b) => a + b, 0) / iv.length;
+        const std = Math.sqrt(iv.reduce((a, b) => a + (b - avg) * (b - avg), 0) / iv.length);
+        if (avg < 95 && std < 12) { // ~>10.5 cps with <12ms jitter = a machine, not a hand
+          lastEgg = t2; clickLog = [];
+          showAutoclickerEgg();
+          return;
+        }
       }
       const r = WB.GAME.hustle();
       const rect = $("scene").getBoundingClientRect();
@@ -2646,6 +2798,7 @@ WB.UI = (function () {
     setInterval(watchJailForCloud, 1500); // push score the instant you're jailed / bailed
     startSocial(); // friend-request + gift listeners (run all session)
     setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
+    setInterval(maybeSocialPrize, 75000); // "follow us for a prize" — fires once
     // listen for admin broadcasts (global events) — apply to this player live
     const startBroadcast = () => { if (WB.CLOUD && WB.CLOUD.enabled && WB.CLOUD.watchBroadcast) WB.CLOUD.watchBroadcast(applyBroadcast); };
     if (WB.CLOUD && WB.CLOUD.enabled) startBroadcast(); else window.addEventListener("wb-cloud-ready", startBroadcast);

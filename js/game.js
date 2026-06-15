@@ -597,11 +597,17 @@ WB.GAME = (function () {
     const keep = {
       version: s.version, allTimeEarnings: s.allTimeEarnings, era: s.era,
       achievements: s.achievements, prestige: s.prestige, stats: s.stats, lastSaved: s.lastSaved,
-      empire: s.empire, // you don't un-buy the Moon
+      // NOTE: empire is intentionally NOT kept — rebirth resets the empire completely.
       challengesClaimed: s.challengesClaimed, challengeTrack: s.challengeTrack, tutorialDone: s.tutorialDone,
     };
     const run = freshRun();
     Object.assign(s, run, keep);
+    // Rebirth is a hard reset: the empire is wiped completely, and you walk
+    // straight out of any jail cell — instantly, no bail. (freshRun doesn't
+    // touch empire, so reset it here explicitly.)
+    s.empire = { unlocked: 0, ventures: {} };
+    if (s.crime) { s.crime.prisonUntil = 0; s.crime.heat = 0; }
+    if (WB.UI && WB.UI.hidePrison) WB.UI.hidePrison();
     s.money = 1000 * pup("headstart");
     const kh = pup("keephardware");
     if (kh > 0) Object.keys(s.equipment).forEach(k => {
@@ -793,7 +799,7 @@ WB.GAME = (function () {
     WB.ACTIONS.tick();
 
     // Events
-    if (now >= s.nextEventAt && !UI.modalOpen()) {
+    if (now >= s.nextEventAt && !UI.modalOpen() && !inPrison()) { // no normal events while jailed
       fireEvent();
       s.nextEventAt = now + (32 + Math.random() * 46) * 1000 / (speedMult() > 1 ? 2 : 1);
     }
