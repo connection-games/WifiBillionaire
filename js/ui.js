@@ -266,6 +266,12 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.0.0 — MULTIPLAYER HEISTS 🤝", items: [
+      "👥 NEW: real co-op heist lobbies! On any robbery, hit Crew to open a lobby, invite online friends AND players, and pull the job together.",
+      "✅ Everyone readies up before the host rolls out — a bigger crew means lower risk and a bigger score, with a cut sent to every member.",
+      "💬 Lobby chat while you wait, live ready-up indicators, and you can see who's online to invite.",
+      "📲 Get invited and a slick popup slides in — Join or Decline before it expires.",
+    ]},
     { v: "v6.9.2 — Watch-to-double", items: [
       "📺 (Web version) Claim your Daily Reward, then optionally watch a short ad to DOUBLE it. Desktop app stays ad-free.",
     ]},
@@ -1329,6 +1335,7 @@ WB.UI = (function () {
   }
   function applyGift(g) {
     WB.CLOUD.clearInbox(g.id);
+    if (g.type === "invite") { showInvitePopup(g); return; } // heist-lobby invite → popup
     const amt = g.amount || 0;
     if (g.type === "bail") {
       if (WB.CRIME && WB.CRIME.inPrison()) {
@@ -1790,6 +1797,200 @@ WB.UI = (function () {
     $("crew-cancel").onclick = closeModal;
   }
 
+  // ============================================================ 👥 Heist Lobby (multiplayer)
+  const lobby = { id: null, jobId: null, data: null, msgs: [], online: [], invited: {}, isHost: false, resolved: false, unsub: null, unsubMsgs: null };
+  const lobbyJob = () => WB.CRIME.HARD_CRIMES.find(x => x.id === lobby.jobId);
+  function stopLobbyWatch() {
+    if (lobby.unsub) { lobby.unsub(); lobby.unsub = null; }
+    if (lobby.unsubMsgs) { lobby.unsubMsgs(); lobby.unsubMsgs = null; }
+  }
+  function resetLobby() { stopLobbyWatch(); lobby.id = null; lobby.jobId = null; lobby.data = null; lobby.msgs = []; lobby.invited = {}; lobby.isHost = false; lobby.resolved = false; }
+  function leaveLobby(silent) {
+    const id = lobby.id;
+    if (id && WB.CLOUD && WB.CLOUD.leaveLobby) WB.CLOUD.leaveLobby(id);
+    const open = modalIsOpen && document.getElementById("lobby-root");
+    resetLobby();
+    if (!silent && open) closeModal();
+  }
+  // "🤝 Crew" → an online lobby when connected, else the offline Adam/friend picker.
+  function openLobbyCreate(id) {
+    if (!WB.CLOUD || !WB.CLOUD.enabled) { openHeistPicker(id); return; }
+    const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === id);
+    const el = WB.CRIME.eligibleHard(cr);
+    if (!el.ok) { toast("🚫 " + el.why, "bad"); return; }
+    if (WB.CRIME.inPrison()) { toast("🚫 " + WB.t("You're in jail. Sit tight."), "bad"); return; }
+    WB.CLOUD.createLobby(id, cr.name, playerName()).then(lid => {
+      if (!lid) { toast("☁️ " + WB.t("Couldn't open a lobby — try the offline crew."), "bad"); openHeistPicker(id); return; }
+      resetLobby(); lobby.id = lid; lobby.jobId = id; lobby.isHost = true;
+      startLobbyWatch(); renderLobbyModal();
+    });
+  }
+  function joinLobbyFlow(lobbyId, jobId) {
+    if (!WB.CLOUD || !WB.CLOUD.enabled) return;
+    WB.CLOUD.joinLobby(lobbyId, playerName()).then(ok => {
+      if (!ok) { toast("🚫 " + WB.t("That crew already rolled out."), "bad"); return; }
+      resetLobby(); lobby.id = lobbyId; lobby.jobId = jobId; lobby.isHost = false;
+      startLobbyWatch(); renderLobbyModal();
+    });
+  }
+  function startLobbyWatch() {
+    stopLobbyWatch();
+    lobby.unsub = WB.CLOUD.watchLobby(lobby.id, d => { lobby.data = d; onLobbyUpdate(); });
+    lobby.unsubMsgs = WB.CLOUD.watchLobbyMsgs(lobby.id, m => { lobby.msgs = m || []; renderLobbyMsgs(); });
+  }
+  function onLobbyUpdate() {
+    if (!lobby.id) return;
+    const d = lobby.data;
+    if (!d || d.status === "closed") {
+      const resolved = lobby.resolved;
+      const open = modalIsOpen && document.getElementById("lobby-root");
+      resetLobby();
+      if (open) closeModal();
+      if (!resolved) toast("👋 " + WB.t("The crew disbanded."), "bad");
+      return;
+    }
+    if (d.status === "done" && !lobby.resolved && !lobby.isHost) { lobby.resolved = true; resolveLobbyMember(d); return; }
+    if (!document.getElementById("lobby-root")) { leaveLobby(true); return; } // modal closed elsewhere → clean up
+    if (d.status === "started" && !lobby.isHost) { const s = $("lobby-status"); if (s) { s.textContent = WB.t("Rolling out…"); s.className = "lobby-status go"; } return; }
+    updateLobbyBody();
+  }
+  function renderLobbyModal() {
+    const cr = lobbyJob();
+    openModal(`
+      <div class="lobby" id="lobby-root">
+        <div class="lobby-hero">
+          <div class="lobby-hero-ico">${cr ? cr.icon : "🦹"}</div>
+          <div class="lobby-hero-main">
+            <div class="lobby-hero-title">${cr ? esc(WB.t(cr.name)) : "Heist"}</div>
+            <div class="lobby-hero-sub">${WB.t("Crew lobby — bigger crew, safer job, bigger score")}</div>
+          </div>
+          <span class="lobby-status" id="lobby-status">${WB.t("Waiting…")}</span>
+        </div>
+        <div class="lobby-section">${WB.t("Crew")}</div>
+        <div class="lobby-members" id="lobby-members"></div>
+        <div class="lobby-section">${WB.t("Invite players")}</div>
+        <div class="lobby-invite" id="lobby-invites"></div>
+        <div class="lobby-section">${WB.t("Lobby chat")}</div>
+        <div class="lobby-chat">
+          <div class="lobby-msgs" id="lobby-msgs"></div>
+          <div class="lobby-chat-row"><input class="lobby-chat-input" id="lobby-chat-input" placeholder="${WB.t("Message the crew…")}" maxlength="200" autocomplete="off"><button class="btn primary lobby-send" id="lobby-send">➤</button></div>
+        </div>
+        <div class="lobby-foot" id="lobby-foot"></div>
+      </div>`);
+    const send = () => { const i = $("lobby-chat-input"); const t = (i.value || "").trim(); if (!t) return; WB.CLOUD.sendLobbyMsg(lobby.id, t, playerName()); i.value = ""; };
+    $("lobby-send").onclick = send;
+    $("lobby-chat-input").onkeydown = e => { if (e.key === "Enter") send(); };
+    if (WB.CLOUD.fetchOnlinePlayers) WB.CLOUD.fetchOnlinePlayers(30).then(list => { lobby.online = list || []; if (document.getElementById("lobby-root")) updateLobbyBody(); });
+    updateLobbyBody();
+    renderLobbyMsgs();
+  }
+  function updateLobbyBody() {
+    const d = lobby.data; if (!d || !$("lobby-members")) return;
+    const members = d.members || {}, uids = Object.keys(members), me = WB.CLOUD.uid;
+    const allReady = uids.length >= 2 && uids.every(u => members[u].ready);
+    const stat = $("lobby-status");
+    if (stat) { stat.textContent = allReady ? WB.t("Everyone's ready! 🔥") : uids.length < 2 ? WB.t("Invite your crew…") : WB.t("Waiting for crew…"); stat.className = "lobby-status" + (allReady ? " go" : ""); }
+    $("lobby-members").innerHTML = uids.map(u => {
+      const m = members[u], ini = (m.name || "?").trim().charAt(0).toUpperCase();
+      return `<div class="lobby-member ${m.ready ? "ready" : ""}">
+        <span class="lobby-avatar">${esc(ini)}</span>
+        <span class="lobby-mname">${esc(m.name)}${u === me ? ` <span class="muted">(${WB.t("you")})</span>` : ""}</span>
+        ${m.host ? `<span class="lobby-tag">HOST</span>` : ""}
+        <span class="lobby-mstate"><span class="lobby-readydot"></span>${m.ready ? WB.t("Ready") : WB.t("Not ready")}</span>
+      </div>`;
+    }).join("");
+    const inSet = new Set(uids), seen = new Set();
+    const cands = [];
+    (social.friends || []).filter(f => f.online).forEach(f => cands.push({ uid: f.uid, name: f.name }));
+    (lobby.online || []).forEach(p => cands.push({ uid: p.uid, name: p.name }));
+    const list = cands.filter(c => c.uid && !inSet.has(c.uid) && !seen.has(c.uid) && (seen.add(c.uid), true));
+    $("lobby-invites").innerHTML = list.length ? list.map(c => {
+      const ini = (c.name || "?").trim().charAt(0).toUpperCase(), inv = lobby.invited[c.uid];
+      return `<div class="lobby-invite-row">
+        <span class="lobby-avatar">${esc(ini)}</span>
+        <span class="lobby-invite-name">${esc(c.name)}</span>
+        <button class="lobby-invite-btn ${inv ? "invited" : ""}" data-inv="${esc(c.uid)}" data-name="${esc(c.name)}" ${inv ? "disabled" : ""}>${inv ? WB.t("Invited ✓") : "＋ " + WB.t("Invite")}</button>
+      </div>`;
+    }).join("") : `<div class="fr-empty">${WB.t("No other players online right now — invite a friend to log on!")}</div>`;
+    $("lobby-invites").querySelectorAll("[data-inv]").forEach(b => b.onclick = () => {
+      WB.CLOUD.sendLobbyInvite(b.dataset.inv, lobby.id, lobby.jobId, (lobbyJob() || {}).name || "a heist", playerName());
+      lobby.invited[b.dataset.inv] = true; toast(`📨 ${WB.t("Invited")} ${esc(b.dataset.name)}`, "good"); updateLobbyBody();
+    });
+    const myReady = members[me] && members[me].ready;
+    let foot = `<button class="lobby-btn ready ${myReady ? "on" : ""}" id="lobby-ready">${myReady ? "✓ " + WB.t("Ready") : WB.t("Ready up")}</button>`;
+    if (lobby.isHost) foot += `<button class="lobby-btn start" id="lobby-start" ${allReady ? "" : "disabled"}>🚀 ${WB.t("Start heist")}${uids.length >= 2 ? ` · ${uids.length}` : ""}</button>`;
+    foot += `<button class="lobby-btn leave" id="lobby-leave">${WB.t("Leave")}</button>`;
+    $("lobby-foot").innerHTML = foot;
+    $("lobby-ready").onclick = () => WB.CLOUD.setLobbyReady(lobby.id, !myReady);
+    if (lobby.isHost && $("lobby-start")) $("lobby-start").onclick = () => { if (allReady) startLobbyHeist(); };
+    $("lobby-leave").onclick = () => leaveLobby();
+  }
+  function renderLobbyMsgs() {
+    const box = $("lobby-msgs"); if (!box) return;
+    const me = WB.CLOUD.uid;
+    box.innerHTML = (lobby.msgs && lobby.msgs.length)
+      ? lobby.msgs.map(m => `<div class="lmsg ${m.from === me ? "me" : ""}">${m.from !== me ? `<span class="lmsg-name">${esc(m.fromName || "?")}</span>` : ""}<span>${esc(m.text)}</span></div>`).join("")
+      : `<div class="fr-empty">${WB.t("Say hi to the crew 👋")}</div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  function startLobbyHeist() {
+    const d = lobby.data; if (!d || !lobby.isHost) return;
+    const uids = Object.keys(d.members || {}), crew = uids.length;
+    const r = WB.CRIME.commitHard(lobby.jobId, true, crew);
+    if (!r || r.refused) { toast("🚫 " + ((r && r.refused) || "Can't start."), "bad"); return; }
+    lobby.resolved = true;
+    const id = lobby.id;
+    WB.CLOUD.finishLobby(id, { win: r.win, payout: r.win ? r.money : 0, by: playerName(), job: r.job });
+    if (r.win) uids.forEach(u => { if (u !== WB.CLOUD.uid) WB.CLOUD.sendHeistCut(u, Math.floor(r.money * 0.35), playerName(), r.job); });
+    stopLobbyWatch(); closeModal(); resetLobby();
+    const reveal = () => { WB.CRIME.finalizeHardJob(r); openResult(r); renderTab(true); renderHud(); };
+    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(r.win ? "heistDuo" : "heistBustDuo", reveal); else reveal();
+    setTimeout(() => { if (WB.CLOUD.closeLobby) WB.CLOUD.closeLobby(id); }, 9000);
+  }
+  function resolveLobbyMember(d) {
+    const res = d.result || {};
+    stopLobbyWatch(); const open = modalIsOpen && document.getElementById("lobby-root");
+    resetLobby(); if (open) closeModal();
+    const win = !!res.win;
+    const done = () => {
+      if (win) toast(`🤝 ${esc(res.by || "The crew")} ${WB.t("pulled off the")} ${esc(res.job || "job")} — ${WB.t("your cut's on the way!")}`, "good");
+      else toast(`🚔 ${WB.t("The")} ${esc(res.job || "job")} ${WB.t("went bad — the crew scattered.")}`, "bad");
+      renderTab(true); renderHud();
+    };
+    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(win ? "heistDuo" : "heistBustDuo", done); else done();
+  }
+  // incoming invite popup
+  let invitePop = null;
+  function showInvitePopup(g) {
+    if (lobby.id === g.lobbyId) return; // already in it
+    if (invitePop) invitePop.remove();
+    const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === g.jobId);
+    const icon = cr ? cr.icon : "🦹", job = g.jobName || (cr && cr.name) || "a heist";
+    const pop = document.createElement("div");
+    pop.className = "invite-pop";
+    pop.innerHTML = `
+      <div class="invite-card">
+        <div class="invite-glow"></div>
+        <div class="invite-ico">${icon}</div>
+        <div class="invite-from"><b>${esc(g.fromName || "A player")}</b> ${WB.t("invites you to")}</div>
+        <div class="invite-job">${esc(job)}</div>
+        <div class="invite-sub">${WB.t("Join the crew — lower risk, bigger score, and a cut for you.")}</div>
+        <div class="invite-timer"><div class="invite-timer-fill" id="inv-fill"></div></div>
+        <div class="invite-actions">
+          <button class="btn subtle invite-decline" id="inv-no">${WB.t("Decline")}</button>
+          <button class="btn primary invite-join" id="inv-yes">🤝 ${WB.t("Join")}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    invitePop = pop;
+    toast(`🤝 ${esc(g.fromName || "A player")} ${WB.t("invited you to a heist!")}`, "good");
+    const TOTAL = 30000, start = Date.now(), fill = pop.querySelector("#inv-fill");
+    const iv = setInterval(() => { const left = Math.max(0, TOTAL - (Date.now() - start)); if (fill) fill.style.width = (left / TOTAL * 100) + "%"; if (left <= 0) close(); }, 150);
+    function close() { clearInterval(iv); if (pop.parentNode) pop.remove(); if (invitePop === pop) invitePop = null; }
+    pop.querySelector("#inv-no").onclick = close;
+    pop.querySelector("#inv-yes").onclick = () => { close(); joinLobbyFlow(g.lobbyId, g.jobId); };
+  }
+
   // ---------- Empire tab (secret endgame) ----------
   function tabEmpire() {
     const E = WB.EMPIRE;
@@ -1883,7 +2084,7 @@ WB.UI = (function () {
     else if (act === "claimchal") { claimChallenge(key); return; }
     else if (act === "trackchal") { toggleTrackChallenge(key); return; }
     else if (act === "hardjob") { doHardJob(key, false); return; }
-    else if (act === "heistfriend") { openHeistPicker(key); return; }
+    else if (act === "heistfriend") { openLobbyCreate(key); return; }
     else if (act === "crimecat") { crimeCat = key; }
     else if (act === "lbrefresh") { loadLeaderboard(); return; }
     else if (act === "openscam") WB.SCAM.open();

@@ -1911,3 +1911,342 @@ html[data-theme="dark"] .crime-stake { color: #ffb340; }
 .hard-btns .crime-btn { flex: 1; }
 .crime-btn.coop { background: linear-gradient(135deg, #34c759, #248a3d) !important; color: #fff !important; }
 .crew-pick small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
+
+/* ============================================================ v7.0 — Multiplayer Heist Lobby + Incoming Invite
+   The co-op centerpiece. Clean Apple-style surfaces with tasteful gradients,
+   subtle glassmorphism, glowing accents, avatar circles and pulsing "ready" cues.
+   Fully dark-mode safe: backgrounds, hovers and accents all flow through the
+   existing CSS variables (--panel, --panel2, --hover, --accent, --green, etc.),
+   with html[data-theme="dark"] overrides only where a light fallback would jar.
+   Animations stay on transform/opacity for smooth, cheap motion. */
+
+/* ---------- Lobby wrapper (rendered inside #modal-content) ---------- */
+.lobby {
+  text-align: left;
+  display: flex; flex-direction: column; gap: 14px;
+  animation: lobbyRise 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.05) both;
+}
+@keyframes lobbyRise { from { opacity: 0; transform: translateY(10px); } }
+
+/* ---------- Hero band: the job at a glance ---------- */
+.lobby-hero {
+  display: flex; align-items: center; gap: 14px;
+  border-radius: 18px; padding: 16px 18px;
+  /* dark, cinematic gradient like .crime-hero — reads well in both themes */
+  background: linear-gradient(135deg, #15233a 0%, #1c2540 55%, #2a1d3a 100%);
+  color: #f2f4f9; border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 10px 30px rgba(10, 14, 30, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  position: relative; overflow: hidden;
+}
+/* faint glow sweep behind the hero icon for a premium feel */
+.lobby-hero::before {
+  content: ""; position: absolute; top: -40%; left: -10%;
+  width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(41, 151, 255, 0.32), transparent 70%);
+  pointer-events: none;
+}
+.lobby-hero-ico {
+  flex: 0 0 auto; width: 56px; height: 56px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  position: relative; z-index: 1;
+}
+.lobby-hero-main { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.lobby-hero-title { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.2; }
+.lobby-hero-sub { font-size: 11.5px; color: #aeb6cc; margin-top: 3px; font-weight: 600; }
+/* status pill — "Waiting for crew…" by default, green when everyone's set */
+.lobby-status {
+  flex: 0 0 auto; align-self: flex-start; position: relative; z-index: 1;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.2px;
+  padding: 5px 11px; border-radius: 999px; color: #cfe0ff;
+  background: rgba(41, 151, 255, 0.18); border: 1px solid rgba(41, 151, 255, 0.34);
+  white-space: nowrap;
+}
+.lobby-status.go {
+  color: #eafff1; background: rgba(52, 199, 89, 0.26);
+  border-color: rgba(52, 199, 89, 0.5);
+  animation: lobbyGoPulse 1.5s ease-in-out infinite;
+}
+@keyframes lobbyGoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); }
+  50% { box-shadow: 0 0 14px 1px rgba(52, 199, 89, 0.45); }
+}
+
+/* ---------- Section labels (match .fr-section) ---------- */
+.lobby-section {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--muted); margin: 2px 2px -2px;
+}
+
+/* ---------- Crew member list ---------- */
+.lobby-members { display: flex; flex-direction: column; gap: 6px; }
+.lobby-member {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 13px;
+  background: var(--panel); border: 1px solid var(--border-soft);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+/* shared avatar circle: gradient disc with a centered initial */
+.lobby-avatar {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: #fff; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+  box-shadow: 0 2px 7px rgba(0, 113, 227, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.lobby-mname {
+  flex: 1; min-width: 0; font-weight: 700; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* HOST tag */
+.lobby-tag {
+  flex: 0 0 auto; font-size: 9px; font-weight: 900; letter-spacing: 0.8px;
+  padding: 2px 7px; border-radius: 999px; color: var(--gold);
+  background: rgba(255, 159, 10, 0.14); border: 1px solid rgba(255, 159, 10, 0.32);
+}
+.lobby-mstate {
+  flex: 0 0 auto; font-size: 11.5px; font-weight: 700; color: var(--muted);
+  transition: color 0.25s ease;
+}
+/* ready dot — grey idle, green glowing when readied */
+.lobby-readydot {
+  flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--border); transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+/* readied row: accents shift to green with a soft tinted background */
+.lobby-member.ready {
+  border-color: rgba(52, 199, 89, 0.4);
+  background: linear-gradient(180deg, rgba(52, 199, 89, 0.09), transparent);
+}
+.lobby-member.ready .lobby-mstate { color: var(--green); }
+.lobby-member.ready .lobby-readydot {
+  background: var(--green-bright);
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.18), 0 0 9px 1px rgba(52, 199, 89, 0.55);
+  animation: lobbyDotPulse 1.6s ease-in-out infinite;
+}
+@keyframes lobbyDotPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+/* ---------- Invite people section ---------- */
+.lobby-invite { display: flex; flex-direction: column; gap: 6px; }
+.lobby-invite-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 12px; border-radius: 13px;
+  background: var(--panel); border: 1px solid var(--border-soft);
+}
+.lobby-invite-name {
+  flex: 1; min-width: 0; font-weight: 600; font-size: 13.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lobby-invite-btn {
+  flex: 0 0 auto; font-family: inherit; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; padding: 6px 13px; border-radius: 999px;
+  color: var(--accent); background: var(--accent-tint);
+  border: 1px solid transparent;
+  transition: transform 0.12s var(--ease), background 0.16s, box-shadow 0.16s;
+}
+.lobby-invite-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.lobby-invite-btn:active { transform: scale(0.96); }
+/* once invited: greyed + locked */
+.lobby-invite-btn.invited {
+  color: var(--muted); background: var(--panel2);
+  border-color: var(--border-soft);
+  cursor: default; pointer-events: none; transform: none; box-shadow: none;
+}
+
+/* ---------- Waiting-room chat ---------- */
+.lobby-chat { display: flex; flex-direction: column; gap: 9px; }
+.lobby-msgs {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 160px; overflow-y: auto;
+  padding: 10px; border-radius: 13px;
+  background: var(--bg); border: 1px solid var(--border-soft);
+}
+.lobby-msgs::-webkit-scrollbar { width: 8px; }
+.lobby-msgs::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 999px; background-clip: padding-box;
+  border: 2px solid transparent;
+}
+/* tiny name caption above a bubble */
+.lmsg-name {
+  font-size: 9.5px; font-weight: 700; color: var(--muted);
+  margin: 2px 0 1px 4px; letter-spacing: 0.2px;
+}
+/* chat bubble — others left/panel2, me right/accent */
+.lmsg {
+  max-width: 78%; align-self: flex-start;
+  padding: 7px 12px; border-radius: 14px; border-bottom-left-radius: 5px;
+  font-size: 13px; line-height: 1.35;
+  background: var(--panel2); color: var(--text);
+  animation: lobbyMsgIn 0.22s ease both;
+}
+.lmsg.me {
+  align-self: flex-end; color: #fff;
+  background: var(--accent);
+  border-bottom-left-radius: 14px; border-bottom-right-radius: 5px;
+}
+@keyframes lobbyMsgIn { from { opacity: 0; transform: translateY(5px) scale(0.97); } }
+/* input + send row */
+.lobby-chat-row { display: flex; gap: 8px; }
+.lobby-chat-input {
+  flex: 1; min-width: 0; font-family: inherit; font-size: 13px;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border-soft); border-radius: 11px; padding: 10px 12px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.lobby-chat-input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.lobby-send {
+  flex: 0 0 auto; font-family: inherit; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: #fff; padding: 10px 16px; border-radius: 11px;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  border: none; box-shadow: 0 2px 8px rgba(0, 113, 227, 0.26);
+  transition: transform 0.12s var(--ease), filter 0.15s;
+}
+.lobby-send:hover { filter: brightness(1.05); }
+.lobby-send:active { transform: scale(0.96); }
+
+/* ---------- Footer button row ---------- */
+.lobby-foot { display: flex; gap: 9px; margin-top: 2px; }
+.lobby-btn {
+  flex: 1; font-family: inherit; cursor: pointer;
+  font-size: 13.5px; font-weight: 700; padding: 12px 14px; border-radius: 13px;
+  color: var(--text); background: var(--panel2);
+  border: 1px solid var(--border-soft);
+  transition: transform 0.12s var(--ease), background 0.16s, border-color 0.16s, box-shadow 0.16s, filter 0.15s;
+}
+.lobby-btn:hover { background: var(--hover); transform: translateY(-1px); }
+.lobby-btn:active { transform: scale(0.97); }
+/* ready toggle: outlined idle, solid green when .on */
+.lobby-btn.ready { color: var(--green); }
+.lobby-btn.ready.on {
+  color: #fff; border-color: transparent;
+  background: linear-gradient(180deg, var(--green-bright), var(--green));
+  box-shadow: 0 2px 10px rgba(52, 199, 89, 0.32);
+}
+.lobby-btn.ready.on:hover { filter: brightness(1.05); background: linear-gradient(180deg, var(--green-bright), var(--green)); }
+/* host's prominent start CTA */
+.lobby-btn.start {
+  flex: 1.4; color: #fff; border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  box-shadow: 0 3px 12px rgba(0, 113, 227, 0.34);
+}
+.lobby-btn.start:hover { filter: brightness(1.06); background: linear-gradient(180deg, var(--accent-hover), var(--accent)); }
+.lobby-btn.start:disabled {
+  cursor: not-allowed; filter: grayscale(0.6); opacity: 0.5;
+  color: var(--muted); background: var(--panel2); border-color: var(--border-soft);
+  box-shadow: none; transform: none;
+}
+/* leave: subtle, red-tinged */
+.lobby-btn.leave { flex: 0.8; color: var(--red); background: transparent; border-color: transparent; }
+.lobby-btn.leave:hover { background: rgba(255, 69, 58, 0.12); transform: translateY(-1px); }
+
+/* dark-mode touch-ups for surfaces that would otherwise be flat */
+html[data-theme="dark"] .lobby-btn:hover { background: var(--hover); }
+html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
+
+/* ============================================================ Incoming invite popup — the wow moment
+   A fixed, dimmed, blurred overlay that floats above everything (the modal lives
+   at z-index 100; this sits at ~11000). The card makes a bouncy entrance. */
+.invite-pop {
+  position: fixed; inset: 0; z-index: 11000;
+  display: flex; align-items: center; justify-content: center; padding: 22px;
+  background: rgba(6, 8, 16, 0.55);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  animation: invFade 0.28s ease both;
+}
+@keyframes invFade { from { opacity: 0; } }
+
+/* the card — glassy gradient, deep shadow, springy slide-up entrance */
+.invite-card {
+  position: relative; width: 100%; max-width: 340px; text-align: center;
+  border-radius: 22px; padding: 26px 24px 22px;
+  background: linear-gradient(165deg, var(--panel), var(--panel2));
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  animation: invCardIn 0.5s cubic-bezier(0.18, 1.3, 0.4, 1) both;
+}
+@keyframes invCardIn {
+  from { opacity: 0; transform: translateY(26px) scale(0.9); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* decorative aura glowing up behind the card */
+.invite-glow {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  width: 200px; height: 200px; border-radius: 50%; z-index: 0; pointer-events: none;
+  background: radial-gradient(circle, rgba(52, 199, 89, 0.40), transparent 68%);
+  filter: blur(6px); opacity: 0.85;
+  animation: invGlow 2.4s ease-in-out infinite;
+}
+@keyframes invGlow {
+  0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(0.92); }
+  50% { opacity: 0.95; transform: translateX(-50%) scale(1.06); }
+}
+/* keep all card content above the aura */
+.invite-card > *:not(.invite-glow) { position: relative; z-index: 1; }
+
+/* big pulsing job badge */
+.invite-ico {
+  width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center; font-size: 40px;
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.18), rgba(41, 151, 255, 0.18));
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 8px 22px rgba(52, 199, 89, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  animation: invIcoPulse 1.8s ease-in-out infinite;
+}
+@keyframes invIcoPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 8px 22px rgba(52, 199, 89, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+  50% { transform: scale(1.07); box-shadow: 0 10px 30px rgba(52, 199, 89, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+}
+/* "Username invites you to…" */
+.invite-from { font-size: 13px; color: var(--muted); font-weight: 600; }
+.invite-from b { color: var(--text); font-weight: 800; }
+/* the heist name */
+.invite-job {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.4px;
+  color: var(--text); margin: 4px 0 6px; line-height: 1.18;
+}
+.invite-sub { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
+
+/* auto-expire countdown bar — JS shrinks the fill's width */
+.invite-timer {
+  height: 5px; border-radius: 999px; overflow: hidden; margin-bottom: 16px;
+  background: var(--panel2); border: 1px solid var(--border-soft);
+}
+.invite-timer-fill {
+  display: block; height: 100%; width: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--green-bright), var(--accent));
+  transition: width 0.25s linear;
+}
+
+/* action buttons */
+.invite-actions { display: flex; gap: 10px; }
+.invite-join {
+  flex: 1.6; font-family: inherit; cursor: pointer;
+  font-size: 15px; font-weight: 800; color: #fff; padding: 13px 16px; border-radius: 14px;
+  border: none;
+  background: linear-gradient(180deg, var(--green-bright), var(--green));
+  box-shadow: 0 4px 16px rgba(52, 199, 89, 0.40);
+  transition: transform 0.12s var(--ease), filter 0.15s, box-shadow 0.16s;
+  animation: invGoPulse 1.7s ease-in-out infinite;
+}
+@keyframes invGoPulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(52, 199, 89, 0.40); }
+  50% { box-shadow: 0 4px 22px rgba(52, 199, 89, 0.62); }
+}
+.invite-join:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.invite-join:active { transform: scale(0.97); }
+.invite-decline {
+  flex: 1; font-family: inherit; cursor: pointer;
+  font-size: 14px; font-weight: 700; color: var(--muted); padding: 13px 14px; border-radius: 14px;
+  background: var(--panel2); border: 1px solid var(--border-soft);
+  transition: transform 0.12s var(--ease), background 0.16s, color 0.16s;
+}
+.invite-decline:hover { background: var(--hover); color: var(--text); }
+.invite-decline:active { transform: scale(0.97); }

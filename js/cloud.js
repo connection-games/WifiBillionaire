@@ -20,7 +20,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import {
   getFirestore, doc, setDoc, getDocs, collection, query,
   orderBy, limit, where, serverTimestamp, Timestamp,
-  onSnapshot, addDoc, deleteDoc, getDoc, updateDoc,
+  onSnapshot, addDoc, deleteDoc, getDoc, updateDoc, deleteField,
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -230,6 +230,122 @@ Cloud.sendHeistCut = async function (friendUid, amount, myName, jobName) {
         from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
     return true;
   } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+// ============================================================ HEIST LOBBIES (multiplayer co-op rooms)
+// A lobby lives at lobbies/{lobbyId}; lobby chat at lobbies/{lobbyId}/msgs/{m}.
+// host creates → friends join/ready → host starts → finish/close.
+Cloud.createLobby = async function (jobId, jobName, myName) {
+  if (!Cloud.enabled || !db) return null;
+  const lobbyId = `${Cloud.uid}_${jobId}`;
+  const n = String(myName || "Anon").slice(0, 24);
+  try {
+    await setDoc(doc(db, "lobbies", lobbyId), {
+      id: lobbyId, host: Cloud.uid, hostName: n, jobId, jobName,
+      status: "waiting",
+      members: { [Cloud.uid]: { name: n, ready: true, host: true } },
+      result: null, ts: serverTimestamp(),
+    });
+    return lobbyId;
+  } catch (e) { Cloud.lastError = e.message; return null; }
+};
+
+Cloud.joinLobby = async function (lobbyId, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    const snap = await getDoc(doc(db, "lobbies", lobbyId));
+    if (!snap.exists() || snap.data().status !== "waiting") return false;
+    await updateDoc(doc(db, "lobbies", lobbyId),
+      { [`members.${Cloud.uid}`]: { name: String(myName || "Anon").slice(0, 24), ready: false, host: false } });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.leaveLobby = async function (lobbyId) {
+  if (!Cloud.enabled || !db) return;
+  try {
+    const snap = await getDoc(doc(db, "lobbies", lobbyId));
+    if (snap.exists() && snap.data().host === Cloud.uid) {
+      await updateDoc(doc(db, "lobbies", lobbyId), { status: "closed" });
+    } else {
+      await updateDoc(doc(db, "lobbies", lobbyId), { [`members.${Cloud.uid}`]: deleteField() });
+    }
+  } catch (e) { Cloud.lastError = e.message; }
+};
+
+Cloud.setLobbyReady = async function (lobbyId, ready) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await updateDoc(doc(db, "lobbies", lobbyId), { [`members.${Cloud.uid}.ready`]: !!ready });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.startLobby = async function (lobbyId) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await updateDoc(doc(db, "lobbies", lobbyId), { status: "started" });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.finishLobby = async function (lobbyId, result) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await updateDoc(doc(db, "lobbies", lobbyId), { status: "done", result: result || {} });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.closeLobby = async function (lobbyId) {
+  if (!Cloud.enabled || !db) return;
+  try {
+    await updateDoc(doc(db, "lobbies", lobbyId), { status: "closed" });
+    try { await deleteDoc(doc(db, "lobbies", lobbyId)); } catch (e) {}
+  } catch (e) { Cloud.lastError = e.message; }
+};
+
+Cloud.watchLobby = function (lobbyId, cb) {
+  if (!Cloud.enabled || !db) { cb(null); return () => {}; }
+  return onSnapshot(doc(db, "lobbies", lobbyId),
+    (s) => cb(s.exists() ? s.data() : null), () => cb(null));
+};
+
+// invite a friend by dropping into their existing inbox (Cloud.watchInbox already streams it)
+Cloud.sendLobbyInvite = async function (targetUid, lobbyId, jobId, jobName, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "scores", targetUid, "inbox"),
+      { type: "invite", lobbyId, jobId, jobName, from: Cloud.uid,
+        fromName: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.sendLobbyMsg = async function (lobbyId, text, myName) {
+  if (!Cloud.enabled || !db || !text.trim()) return false;
+  try {
+    await addDoc(collection(db, "lobbies", lobbyId, "msgs"),
+      { from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), text: String(text).slice(0, 280), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.watchLobbyMsgs = function (lobbyId, cb) {
+  if (!Cloud.enabled || !db) { cb([]); return () => {}; }
+  return onSnapshot(query(collection(db, "lobbies", lobbyId, "msgs"), orderBy("ts", "asc"), limit(60)),
+    (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))), () => cb([]));
+};
+
+// online players (last 2 min) to invite — same presence query as Cloud.heartbeat, minus yourself
+Cloud.fetchOnlinePlayers = async function (n) {
+  if (!Cloud.enabled || !db) return [];
+  try {
+    const since = Timestamp.fromMillis(Date.now() - 120000);
+    const snap = await getDocs(query(collection(db, "presence"), where("ts", ">", since)));
+    return snap.docs.filter((d) => d.id !== Cloud.uid)
+      .map((d) => ({ uid: d.id, name: d.data().name })).slice(0, n || 20);
+  } catch (e) { Cloud.lastError = e.message; return []; }
 };
 
 WB.CLOUD = Cloud;

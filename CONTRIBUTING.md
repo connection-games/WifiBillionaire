@@ -160,6 +160,11 @@ by Firestore rules, not by hiding it. To take the cloud live, in the
        match /chats/{chatId}/msgs/{m} { allow read, create: if request.auth != null; }
        match /feedback/{id}           { allow create: if request.auth != null; }
        match /broadcast/{id}          { allow read: if true; allow write: if request.auth != null; }
+       // multiplayer heist lobbies (create/join/ready/chat). Invites reuse /inbox above.
+       match /lobbies/{id} {
+         allow read, write: if request.auth != null;
+         match /msgs/{m} { allow read, create: if request.auth != null; }
+       }
      }
    }
    ```

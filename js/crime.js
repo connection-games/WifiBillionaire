@@ -438,7 +438,9 @@ WB.CRIME = (function () {
   // credit the payout or send you to jail. Those land in finalizeHardJob(),
   // which ui.js calls once the heist cutscene finishes, so the result is never
   // spoiled before the movie plays.
-  function commitHard(id, withFriend) {
+  // crewSize: total crew (you + partners). 1 = solo, 2 = one friend, 3+ = a full
+  // online lobby. A bigger crew lowers the risk and grows the total take.
+  function commitHard(id, withFriend, crewSize) {
     const s = S(), c = crimeState();
     const cr = HARD_CRIMES.find(x => x.id === id);
     if (!cr) return null;
@@ -446,22 +448,23 @@ WB.CRIME = (function () {
     const el = eligibleHard(cr);
     if (!el.ok) return { refused: el.why };
     s.money -= el.cost; // pay the stake up front (this is the cost of trying, not a spoiler)
+    const crew = Math.max(1, crewSize || (withFriend ? 2 : 1));
     let risk = catchChance(cr);
-    if (withFriend) risk *= 0.6;
+    if (crew >= 2) risk *= Math.max(0.42, 0.66 - crew * 0.03); // crew2≈0.6 … bigger = safer
     const caught = WB.chance(risk);
     if (caught) {
       const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
-      return { hard: true, win: false, caught: true, withFriend, job: cr.name, icon: "🚔",
+      return { hard: true, win: false, caught: true, withFriend, crew, job: cr.name, icon: "🚔",
         title: "Heist Failed!", money: -el.cost, cost: el.cost, sentence, heatAdd: cr.heat * 0.7,
         lines: [WB.pick(cr.flavorLoss), `Lost your ${WB.fmt(el.cost, true)} stake. Sentence: ${WB.fmtTime(sentence)}.`] };
     }
     // Payouts are deliberately big — heists are the marquee high-risk feature.
     let payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + el.cost * 2.5;
-    if (withFriend) payout *= 1.6; // a crew brings home more
+    if (crew >= 2) payout *= 1.6 + (crew - 2) * 0.2; // crew2×1.6, +0.2 per extra member
     payout = Math.floor(payout);
-    return { hard: true, win: true, caught: false, withFriend, job: cr.name, icon: cr.icon,
+    return { hard: true, win: true, caught: false, withFriend, crew, job: cr.name, icon: cr.icon,
       title: cr.name + " — Success", money: payout, cost: el.cost, heatAdd: cr.heat,
-      lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)} (stake back +more).`] };
+      lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)} (stake back +more)${crew >= 3 ? ` · ${crew}-person crew!` : ""}.`] };
   }
 
   // Apply a heist's consequences — called by ui.js AFTER the cutscene ends, so
