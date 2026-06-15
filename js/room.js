@@ -1167,7 +1167,269 @@ WB.ROOM = (function () {
     caption(duo ? "Roadblock. Hands up, both of you. It's over." : "Roadblock. Hands up. It's over.", 158);
   }
 
+  // --- lifestyle / "spending the money" scenes ---
+  function sceneNightDrive(p) {
+    skylinePan(frame * 3);
+    roadScroll(7);
+    const carX = 118 + Math.sin(frame / 5) * 2;
+    sportsCar(carX, 138);
+    px(carX + 17, 130, 6, 4, HAIR);                  // your hair in the wind
+    px(carX + 18, 133, 5, 3, SKIN);                  // your driver head
+    px(carX + 14, 124, 3, 2, "#1d1f24");             // a tossed-up hand / wind
+    for (let i = 0; i < 4; i++) {                     // speed lines
+      const lx = (W - ((frame * 14 + i * 83) % (W + 40)));
+      px(lx, 96 + i * 10, 18, 1, "rgba(255,255,255,0.25)");
+    }
+    // moon glow up high
+    px(252, 22, 12, 12, "#dfe7ff"); px(254, 24, 8, 8, "#f4f7ff");
+    caption(p < 0.5 ? "Windows down. What problems?" : "This is what it was all for.", 158);
+  }
+  function sceneYacht(p) {
+    starsBg(34, 41);
+    // fireworks bursting in the sky
+    for (let b = 0; b < 3; b++) {
+      const cx2 = 60 + b * 100, cy2 = 30 + (b % 2) * 14;
+      const phase = (frame + b * 9) % 30;
+      if (phase < 18) {
+        const rad = 2 + phase * 0.7;
+        const col = b % 2 ? "#ffd60a" : "#ff7ad0";
+        for (let a = 0; a < 8; a++) {
+          const ang = a / 8 * Math.PI * 2;
+          px(Math.round(cx2 + Math.cos(ang) * rad), Math.round(cy2 + Math.sin(ang) * rad), 2, 2, col);
+        }
+      }
+    }
+    // dark water with shimmer
+    px(0, 110, W, H - 110, "#0a1426");
+    px(0, 110, W, 2, "#16243f");
+    for (let i = 0; i < 24; i++) {
+      const wx = (i * 17 + Math.floor(frame / 3) * 5) % W;
+      const wy = 118 + (i * 13) % 56;
+      if ((i + Math.floor(frame / 4)) % 3) px(wx, wy, 6, 1, "rgba(140,180,255,0.30)");
+    }
+    // the yacht hull
+    const hy = 120 + Math.sin(frame / 8) * 1;        // gentle bob
+    px(96, hy, 132, 14, "#e8eaf0");
+    px(96, hy + 14, 132, 4, "#b9bcc4");
+    px(92, hy + 4, 8, 8, "#dfe3ea");                 // bow
+    px(224, hy + 2, 12, 10, "#dfe3ea");             // stern
+    // glowing deck cabin
+    px(120, hy - 16, 88, 16, "#2a3550");
+    px(124, hy - 13, 80, 10, frame % 8 < 4 ? "#ffe9a0" : "#ffd97a"); // glowing windows
+    px(150, hy - 28, 6, 12, "#c8cad0");             // mast
+    px(140, hy - 30, 26, 4, "#34c759");             // little banner
+    // tiny party guests on deck
+    const guests = ["#ff453a", "#34c759", "#0a84ff", "#ffd60a"];
+    for (let g = 0; g < 4; g++) {
+      const gx = 130 + g * 22;
+      const dance = Math.floor((frame + g * 4) / 5) % 2;
+      tinyGuy(gx, hy - 18, guests[g], dance);
+    }
+    // deck light glow on the water
+    ctx.fillStyle = "rgba(255,233,160,0.06)";
+    ctx.fillRect(108, hy + 4, 108, 40);
+    caption(p < 0.5 ? "The whole crew's on the boat tonight." : "From the bedroom to the open sea.", 158);
+  }
+  function sceneViral(p) {
+    px(0, 0, W, H, "#0c1020");
+    // a big monitor / phone screen in the middle
+    const mx = 92, my = 24, mw = 136, mh = 110;
+    px(mx - 4, my - 4, mw + 8, mh + 8, "#1d2333");   // bezel
+    px(mx, my, mw, mh, "#0a84ff");                   // screen blue
+    px(mx, my, mw, mh, frame % 10 < 5 ? "#0a84ff" : "#1390ff");
+    px(mx, my, mw, 14, "#0866c4");                   // app top bar
+    ctx.font = "bold 8px 'Courier New', monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left";
+    ctx.fillText("@you", mx + 6, my + 10);
+    // the rocketing view counter
+    const views = Math.floor(120 + p * p * 4800000);
+    ctx.font = "bold 16px 'Courier New', monospace";
+    ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+    ctx.fillText(views.toLocaleString() + (p > 0.4 ? "" : ""), mx + mw / 2, my + 54);
+    ctx.font = "bold 8px 'Courier New', monospace";
+    ctx.fillStyle = "#cfe0ff";
+    ctx.fillText("VIEWS", mx + mw / 2, my + 66);
+    // a rising arrow / spark
+    const ay = my + 92 - (frame % 24);
+    px(mx + mw / 2 - 1, ay, 3, 8, "#34c759");
+    px(mx + mw / 2 - 3, ay + 2, 2, 2, "#34c759"); px(mx + mw / 2 + 2, ay + 2, 2, 2, "#34c759");
+    ctx.textAlign = "left";
+    // hearts and notification dots flying out
+    for (let i = 0; i < 8; i++) {
+      const t2 = (frame * 3 + i * 40) % 120;
+      const side = i % 2 ? 1 : -1;
+      const hx = mx + mw / 2 + side * (10 + t2 * 0.8);
+      const hy2 = my + mh / 2 - t2 * 0.7;
+      if (t2 < 110) {
+        px(hx, hy2, 2, 2, "#ff453a");                // heart
+        px(hx - 2, hy2 - 1, 1, 1, "#ff453a"); px(hx + 2, hy2 - 1, 1, 1, "#ff453a");
+        px(hx - 1, hy2 + 2, 4, 1, "#ff453a");
+      }
+      const nx = mx + mw / 2 - side * (16 + t2 * 0.6);
+      if (t2 < 100) px(nx, my + 8 + (i * 13) % 80, 4, 4, "#ffd60a"); // notif dot
+    }
+    caption(p < 0.5 ? "Wait… is this thing taking off?" : "IT'S ACTUALLY BLOWING UP.", 158);
+  }
+  function sceneCloseCall(p) {
+    const s = getState(), pal = PAL[s.housing] || PAL[0];
+    px(0, 0, W, FLOOR_Y, pal.wall);
+    px(0, FLOOR_Y, W, H - FLOOR_Y, pal.floor);
+    px(0, FLOOR_Y, W, 2, pal.trim);
+    // window on the left
+    const wx = 30, wy = 24, vw = 66, vh = 50;
+    px(wx - 4, wy - 4, vw + 8, vh + 8, pal.trim);
+    px(wx, wy, vw, vh, "#0a1020");                   // night outside
+    const r = srand(53);
+    for (let i = 0; i < 8; i++) { const sx = wx + Math.floor(r() * vw), sy = wy + Math.floor(r() * 20); if (i % 2) px(sx, sy, 1, 1, "#cdd8f5"); }
+    px(wx + vw / 2 - 1, wy, 2, vh, pal.trim);         // window frame cross
+    px(wx, wy + vh / 2 - 1, vw, 2, pal.trim);
+    // police car drifting past the window (only the pass-window 0.15..0.8 fully visible)
+    const carX = wx - 50 + Math.min(1, p * 1.25) * (vw + 60);
+    // clip-ish: draw car then re-mask wall around the window edges
+    const flash = Math.floor(frame / 4) % 2;
+    if (p < 0.85) policeCar(carX, wy + vh - 4, flash);
+    // re-cover everything outside the window so the car only shows through the glass
+    px(0, 0, W, wy, pal.wall);
+    px(0, wy + vh, W, FLOOR_Y - (wy + vh), pal.wall);
+    px(0, wy, wx, vh, pal.wall);
+    px(wx + vw, wy, W - (wx + vw), vh, pal.wall);
+    px(wx - 4, wy - 4, vw + 8, 4, pal.trim);          // redraw frame
+    px(wx - 4, wy + vh, vw + 8, 4, pal.trim);
+    px(wx - 4, wy, 4, vh, pal.trim);
+    px(wx + vw, wy, 4, vh, pal.trim);
+    // pulsing red/blue wash across the room — fades in then out
+    const intensity = p < 0.7 ? Math.min(1, p / 0.2) : Math.max(0, (0.9 - p) / 0.2);
+    if (intensity > 0) {
+      ctx.fillStyle = (flash ? "rgba(255,69,58," : "rgba(10,132,255,") + (0.18 * intensity) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
+    // you, frozen mid-room, sweat drop
+    const gx = 168, gy = FLOOR_Y + 6;
+    tinyGuy(gx, gy + 14, ERA_HOODIE[s.era || 0], 0);
+    px(gx + 5, gy - 2, 2, 3, "#8fd0f0");             // sweat drop
+    if (frame % 14 < 7) px(gx + 6, gy + 2, 2, 2, "#8fd0f0");
+    caption(p < 0.55 ? "Don't move. Don't even breathe…" : "…they're driving past… they're gone.", 158);
+  }
+  function sceneRaid(p) {
+    const s = getState(), pal = PAL[s.housing] || PAL[0];
+    px(0, 0, W, FLOOR_Y, pal.wall);
+    px(0, FLOOR_Y, W, H - FLOOR_Y, pal.floor);
+    px(0, FLOOR_Y, W, 2, pal.trim);
+    // strobing red/blue wash
+    const flash = Math.floor(frame / 2) % 2;
+    ctx.fillStyle = flash ? "rgba(255,69,58,0.14)" : "rgba(10,132,255,0.14)";
+    ctx.fillRect(0, 0, W, H);
+    // door on the right — rattles, then bursts open
+    const burst = p > 0.4;
+    const shake2 = !burst && Math.floor(frame / 2) % 2 ? 1 : 0;
+    px(258 + shake2, 30, 44, FLOOR_Y - 28, "#5b432e");
+    if (burst) {
+      px(262, 30, 40, FLOOR_Y - 36, "#0a1020");      // doorway flung open, night beyond
+      // splinters
+      for (let i = 0; i < 5; i++) px(250 - i * 6, 40 + (i * 11) % 60, 4, 2, "#6e5238");
+      // cops bursting through
+      const cstep = Math.floor(frame / 3) % 2;
+      const cx2 = 286 - (p - 0.4) * 90;
+      copGuy(cx2, FLOOR_Y + 12, cstep);
+      copGuy(cx2 + 16, FLOOR_Y + 12, !cstep);
+    } else {
+      px(262 + shake2, 34, 36, FLOOR_Y - 36, "#6e5238");
+      px(292 + shake2, 74, 5, 5, "#caa54a");         // handle
+    }
+    // window on the left
+    px(24, 26, 60, 52, pal.trim);
+    px(28, 30, 52, 44, "#0a1020");
+    px(54, 30, 2, 44, pal.trim); px(28, 50, 52, 2, pal.trim);
+    // you scrambling left and diving out the window
+    const dive = Math.min(1, Math.max(0, (p - 0.5) / 0.5));
+    const gx = 180 - p * 130;
+    const gy = FLOOR_Y + 6 - dive * 40;              // launch up & out as you dive
+    const step = Math.floor(frame / 2) % 2;
+    if (dive > 0.6) {
+      // mid-dive: horizontal, arms out toward the window
+      px(gx - 6, gy + 8, 4, 4, SKIN);                // head leading
+      px(gx - 2, gy + 7, 8, 6, ERA_HOODIE[s.era || 0]);
+      px(gx + 5, gy + 8, 4, 3, "#39414f");           // legs trailing
+    } else {
+      tinyGuy(gx, gy + 14, ERA_HOODIE[s.era || 0], step);
+    }
+    caption(p < 0.5 ? "RAID! GO — out the window!" : "Feet don't fail me now.", 158);
+  }
+  function sceneSplurge(p) {
+    px(0, 0, W, H, "#241a33");                        // mall-purple backdrop
+    px(0, 0, W, H, frame % 12 < 6 ? "#241a33" : "#2b1f3d");
+    // confetti / sparkle bg
+    const r = srand(67);
+    for (let i = 0; i < 20; i++) {
+      const sx = (Math.floor(r() * W) + frame) % W, sy = (Math.floor(r() * H) + i * 3) % H;
+      if (i % 2) px(sx, sy, 2, 2, i % 4 ? "#ffd60a" : "#ff7ad0");
+    }
+    // shopping bags / product boxes popping in around the screen
+    const items = [
+      [40, 40, "#ff453a"], [120, 30, "#34c759"], [210, 44, "#0a84ff"],
+      [70, 96, "#ffd60a"], [160, 100, "#ff7ad0"], [248, 92, "#34c759"],
+    ];
+    items.forEach(([ix, iy, col], n) => {
+      const pop = Math.min(1, Math.max(0, (p - n * 0.12) * 6)); // stagger pop-in
+      if (pop <= 0) return;
+      const sz = Math.round(18 * pop);
+      const ox = ix + (18 - sz) / 2, oy = iy + (18 - sz);
+      if (n % 2 === 0) {                              // shopping bag
+        px(ox, oy, sz, sz, col);
+        px(ox, oy, sz, Math.max(2, sz / 4), shade(col));
+        px(ox + sz * 0.25, oy - 3, 2, 4, "#fff");    // handles
+        px(ox + sz * 0.6, oy - 3, 2, 4, "#fff");
+      } else {                                        // product box
+        px(ox, oy, sz, sz, col);
+        px(ox, oy + sz / 2 - 1, sz, 2, "#fff");       // ribbon
+        px(ox + sz / 2 - 1, oy, 2, sz, "#fff");
+      }
+    });
+    // cash & coins flying
+    for (let i = 0; i < 7; i++) {
+      const t2 = (frame * 4 + i * 36) % 130;
+      const fx = (i * 47 + 20) % W;
+      const fy = 20 + t2;
+      if (fy < H - 12) {
+        if (i % 2) px(fx, fy, 5, 3, "#4dde80");       // cash note
+        else { px(fx, fy, 4, 4, "#ffd60a"); px(fx + 1, fy + 1, 2, 2, "#caa64a"); } // coin
+      }
+    }
+    // card swipe near the bottom-center
+    if (p > 0.45) {
+      const swipe = ((frame * 6) % 60);
+      px(120 + swipe, 124, 22, 13, "#1d2333");        // card
+      px(122 + swipe, 127, 18, 3, "#caa64a");         // chip stripe
+      px(122 + swipe, 132, 8, 2, "#6e7480");
+      px(150, 122, 8, 18, "#3a4150");                 // reader slot
+    }
+    caption(p < 0.5 ? "Retail therapy: the only therapy I can afford." : "Worth it. Probably. No — worth it.", 158);
+  }
+
   const CUTS = {
+    drive: [
+      { dur: 2600, draw: sceneNightDrive },
+      { dur: 2400, draw: sceneNightDrive },
+    ],
+    yachtParty: [
+      { dur: 2600, draw: sceneYacht },
+      { dur: 2600, draw: sceneYacht },
+    ],
+    viral: [
+      { dur: 2400, draw: sceneViral },
+      { dur: 2600, draw: sceneViral },
+    ],
+    closecall: [
+      { dur: 2600, draw: sceneCloseCall },
+      { dur: 2600, draw: sceneCloseCall },
+    ],
+    raid: [
+      { dur: 2400, draw: sceneRaid },
+      { dur: 2400, draw: sceneRaid },
+    ],
+    splurge: [
+      { dur: 2400, draw: sceneSplurge },
+      { dur: 2600, draw: sceneSplurge },
+    ],
     heist: [
       { dur: 2200, draw: p => heistFront(p, false) },
       { dur: 2400, draw: p => heistGrab(p, false) },

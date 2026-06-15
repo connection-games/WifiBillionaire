@@ -82,6 +82,7 @@ WB.ASSETS = (function () {
     if (l.rep) s.res.reputation += l.rep;
     s.res.happiness = Math.min(100, s.res.happiness + 10);
     s.stats.lifestyleBought = (s.stats.lifestyleBought || 0) + 1;
+    if (l.cost >= 5e6 && WB.ROOM && WB.ROOM.play) WB.ROOM.play("splurge"); // big-ticket buy → montage
     WB.UI.toast(`${l.icon} Acquired: ${l.name}!`, "good");
     WB.UI.bubble(WB.THOUGHTS.fill(WB.pick([
       "Do I need it? No. Did I buy it? Absolutely.",
@@ -170,5 +171,58 @@ WB.ASSETS = (function () {
     return true;
   }
 
-  return { LIFESTYLE, INVEST, STAFF, fx, buyLifestyle, investBuy, investSell, investTotal, tick, hire, fire };
+  // ---------- Using your toys (on-demand actions, not just passive stats) ----------
+  // Owned lifestyle items can be USED for an instant burst (mood/energy/stress/
+  // clout), some with a cutscene, each on its own cooldown. This is the "let me
+  // actually DO something with the car" layer on top of the passive bonuses.
+  const USE = {
+    espresso:  { label: "Triple shot ☕",      cd: 150, energy: 28, stress: 6,                      bubble: "My blood is 40% espresso now. Let's GO." },
+    console:   { label: "Gaming session 🎮",   cd: 240, happiness: 15, stress: -16, energy: -10,    bubble: "One more match. One more. Okay ONE more." },
+    gym:       { label: "Crush a workout 🏋️",  cd: 240, happiness: 8, stress: -14, motivation: 18, energy: -12, bubble: "Pain is weakness leaving the body. And also just pain." },
+    hottub:    { label: "Long soak 🛁",        cd: 240, stress: -28, happiness: 10, energy: 12,     bubble: "Best ideas of my life happen in 40°C water." },
+    cinema:    { label: "Movie night 🍿",      cd: 300, happiness: 16, stress: -14, energy: -4,     bubble: "Sequels are franchises with abandonment issues." },
+    hatchback: { label: "Go for a drive 🚗",   cd: 240, happiness: 12, stress: -12, cutscene: "drive", bubble: "It mostly starts. That's all I ask of it." },
+    sportscar: { label: "Take it for a spin 🏎️", cd: 300, happiness: 20, stress: -16, reputation: 4, cutscene: "drive", bubble: "Windows down. Problems? What problems?" },
+    supercar:  { label: "Open it up 🏁",        cd: 300, happiness: 26, stress: -18, reputation: 6, cutscene: "drive", bubble: "The doors go UP. I will never be normal again." },
+    sneakers:  { label: "Fit check 👟",        cd: 200, happiness: 8, reputation: 6,                bubble: "Drip so hard it's basically a liability." },
+    watch:     { label: "Check the time ⌚",    cd: 200, happiness: 6, reputation: 10,               bubble: "Tells worse time than my phone. Worth every cent." },
+    art:       { label: "Admire the art 🖼️",   cd: 200, happiness: 7, reputation: 8,                bubble: "It's three lines. I get it. Do YOU get it?" },
+    yacht:     { label: "Throw a party 🛥️",    cd: 600, cost: s => Math.max(5000, WB.GAME.incomePerSec() * 60 * 5), happiness: 34, reputation: 30, followers: 4000, stress: -20, cutscene: "yachtParty", bubble: "From a mattress to the open sea. We made it." },
+    rocket:    { label: "Relive the launch 🚀", cd: 600, happiness: 30, stress: -18,                bubble: "Eleven minutes of weightless smugness. Again." },
+    jet:       { label: "Weekend getaway ✈️",   cd: 600, happiness: 28, stress: -30, energy: 20,    bubble: "Out of office. Out of orbit." },
+    club:      { label: "Match day ⚽",         cd: 600, happiness: 24, reputation: 25, followers: 6000, stress: -10, bubble: "They're chanting a name. The club's. Close enough." },
+  };
+  function useLeft(id) {
+    const u = USE[id]; if (!u) return 0;
+    const st = a(WB.GAME.state);
+    const last = (st.lifeUse && st.lifeUse[id]) || 0;
+    return Math.max(0, last + u.cd * 1000 - Date.now());
+  }
+  const usable = id => !!USE[id];
+  const canUse = id => !!USE[id] && !!a(WB.GAME.state).life[id] && useLeft(id) <= 0;
+  function useLifestyle(id) {
+    const s = WB.GAME.state, st = a(s), u = USE[id];
+    if (!u || !st.life[id] || useLeft(id) > 0) return false;
+    const cost = typeof u.cost === "function" ? u.cost(s) : (u.cost || 0);
+    if (cost > 0) {
+      if (s.money < cost) { WB.UI.toast("💸 Can't afford that right now.", "bad"); return false; }
+      s.money -= cost;
+    }
+    if (!st.lifeUse) st.lifeUse = {};
+    st.lifeUse[id] = Date.now();
+    const R = s.res, clamp = (v) => Math.max(0, Math.min(100, v));
+    if (u.energy) R.energy = clamp(R.energy + u.energy);
+    if (u.happiness) R.happiness = clamp(R.happiness + u.happiness);
+    if (u.stress) R.stress = clamp(R.stress + u.stress);
+    if (u.motivation) R.motivation = clamp(R.motivation + u.motivation);
+    if (u.reputation) R.reputation = Math.max(0, R.reputation + u.reputation);
+    if (u.followers) s.stats.followers += u.followers;
+    if (u.cutscene && WB.ROOM && WB.ROOM.play) WB.ROOM.play(u.cutscene);
+    WB.UI.toast(`${u.label}${cost > 0 ? ` (−${WB.fmt(cost, true)})` : ""}`, "good");
+    if (u.bubble) WB.UI.bubble(WB.THOUGHTS.fill(u.bubble));
+    return true;
+  }
+
+  return { LIFESTYLE, INVEST, STAFF, USE, fx, buyLifestyle, investBuy, investSell, investTotal, tick, hire, fire,
+    usable, canUse, useLeft, useLifestyle };
 })();

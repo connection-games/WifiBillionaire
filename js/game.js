@@ -404,6 +404,17 @@ WB.GAME = (function () {
       gainXp(key, eff.skillXp.amount);
     }
     if (eff.incomeBoost) s.boost = { mult: eff.incomeBoost.mult, until: Date.now() + eff.incomeBoost.sec * 1000 };
+    // Crime/action hooks so events (popups) can move heat, roll a cutscene, or bust you.
+    if (eff.heat && WB.CRIME && WB.CRIME.addHeat) WB.CRIME.addHeat(eff.heat);
+    const jailNow = (skipCutscene) => {
+      if (eff.jail && WB.CRIME && WB.CRIME.goToPrison) WB.CRIME.goToPrison(eff.jail.sec || 180, eff.jail.reason || "Caught", skipCutscene);
+    };
+    if (eff.cutscene && WB.ROOM && WB.ROOM.play) {
+      // play the movie; if it also jails you, the cell waits until the movie ends
+      WB.ROOM.play(eff.cutscene, eff.jail ? () => jailNow(true) : null);
+    } else {
+      jailNow(false); // no custom cutscene → goToPrison rolls the generic arrest scene
+    }
   }
   function fireEvent() {
     const picked = WB.EVENTS.pickEvent(s);

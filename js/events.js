@@ -440,6 +440,160 @@ WB.EVENTS = (function () {
           effect: s => ({ money: 1000 + wf(500), reputation: 8 }) },
       ],
     },
+
+    // ---------- v6.7: high-stakes CRIME HEAT & action events ----------
+    {
+      id: "badfeeling", title: "I've got a bad feeling…", icon: "😬",
+      cond: s => s.crime && s.crime.heat > 70,
+      text: "The air feels wrong. Two unmarked cars have circled the block. Your phone buzzes from a number you don't know.",
+      choices: [
+        { label: "Lay low for a bit", result: "You go dark for a few days, burn a phone, and let the trail go cold. Pricey, but you're breathing.",
+          effect: s => ({ heat: -35, stress: 8, money: -Math.min(s.money * 0.04, wf(180) + 200) }) },
+        { label: "Take a breather, glass of water", result: "You sit. You breathe. The panic was doing half the work. The block clears.",
+          effect: s => ({ heat: -15, stress: -10, happiness: 4 }) },
+        { label: "Push your luck, keep earning", result: "You kept the hustle running and nothing happened. The bad feeling was just indigestion. Ego: restored.", luckCheck: 0.55,
+          effect: s => ({ money: wf(240) + 300, ego: 8, heat: 6 }),
+          failResult: "It was NOT indigestion. The door came off the hinges before you finished the sentence.",
+          failEffect: s => ({ cutscene: "raid", jail: { sec: 240, reason: "Police raid" }, heat: -100 }) },
+      ],
+    },
+    {
+      id: "patrolpass", title: "Patrol Car Crawling By", icon: "🚓",
+      cond: s => s.crime && s.crime.heat > 85,
+      text: "A cruiser rolls past at walking speed, window down, eyes on your door. This is the part of the movie where you make ONE good decision.",
+      choices: [
+        { label: "Act normal, wave, water the plants", result: "You give a neighborly nod and pretend to be a guy who waters plants. They keep rolling. Heart rate: illegal.",
+          effect: s => ({ cutscene: "closecall", heat: -40, stress: 12 }) },
+        { label: "Bolt out the back", result: "Bad call. Running is what guilty people do, and the second cruiser was already in the alley.", luckCheck: 0.4,
+          effect: s => ({ heat: -25, stress: 15, energy: -20 }),
+          failResult: "You sprinted directly into the part of the alley they were watching. They were very ready.",
+          failEffect: s => ({ cutscene: "raid", jail: { sec: 200, reason: "Fled from police" }, heat: -100 }) },
+      ],
+    },
+    {
+      id: "heatwash", title: "Someone Can Make This Go Away", icon: "🧼",
+      cond: s => s.crime && s.crime.heat > 60,
+      text: "A guy who knows a guy says he can 'launder the heat' — make records vanish, witnesses forget — for a generous cut of your cash.",
+      choices: [
+        { label: "Pay the fixer", result: "Money moved, files moved, problems unmoved themselves. The fixer earned every cent. Pleasure doing business.",
+          effect: s => ({ moneyPct: -0.18, heat: -45, stress: -6 }) },
+        { label: "Don't trust him", result: "You kept your cash and your dignity. The heat stayed, but so did your wallet.",
+          effect: s => ({ heat: 4, intelligence: 1, stress: 4 }) },
+      ],
+    },
+    {
+      id: "snitch", title: "A Friend Is Wearing a Wire", icon: "🎙️",
+      cond: s => s.crime && s.crime.heat > 55,
+      text: "Your most reliable contact is acting weird — patting their chest, steering every chat toward 'the operation'. Your gut says wire. Your gut is rarely wrong.",
+      choices: [
+        { label: "Feed them fake info & walk", result: "You spun a beautiful lie into the mic and strolled off. Whoever's listening is now chasing a ghost.",
+          effect: s => ({ heat: -20, intelligence: 2, stress: 6 }) },
+        { label: "Confront them directly", result: "You were right — and the panic confession that followed bought you a head start. Messy, but clear.", luckCheck: 0.5,
+          effect: s => ({ heat: -30, reputation: -4, stress: 10 }),
+          failResult: "You were wrong. They were just nervous. Now they've told everyone you're paranoid AND the actual heat is still on.",
+          failEffect: s => ({ heat: 12, reputation: -8, happiness: -6 }) },
+      ],
+    },
+    {
+      id: "getawaydriver", title: "One Last Run", icon: "🏎️",
+      cond: s => s.crime && s.crime.heat > 50 && s.money > 1000,
+      text: "There's a quick job on the table tonight. Big bag, short window. Every instinct says this is exactly how the story ends badly.",
+      choices: [
+        { label: "Take the wheel", result: "Clean run, full tank, the city blurring past. You pulled it off and the bag was heavier than promised.", luckCheck: 0.5,
+          effect: s => ({ cutscene: "drive", money: wf(900) + 4000, heat: 18, ego: 10 }),
+          failResult: "A roadblock you didn't see. The chase didn't last long. Neither did your freedom.",
+          failEffect: s => ({ cutscene: "raid", jail: { sec: 300, reason: "Caught after a heist run" }, heat: -100 }) },
+        { label: "Sit this one out", result: "You stay home and watch the news. The job went sideways without you. Best gig you never took.",
+          effect: s => ({ heat: -12, happiness: 6, intelligence: 1 }) },
+      ],
+    },
+    {
+      id: "burnerphone", title: "Burner Phone Decision", icon: "📵",
+      cond: s => s.crime && s.crime.heat > 45,
+      text: "Word is the feds are pulling phone records back six months. Your contacts list is, let's say, a 'who's who' of bad ideas.",
+      choices: [
+        { label: "Torch every device, go burner", result: "New numbers, clean slate, zero trail. You feel reborn and mildly broke.",
+          effect: s => ({ heat: -28, money: -Math.min(s.money * 0.05, wf(120) + 150), stress: -4 }) },
+        { label: "It's probably fine", result: "You keep your phone, your contacts, and your fingers crossed. The trail stays warm.",
+          effect: s => ({ heat: 8, stress: 6 }) },
+      ],
+    },
+    {
+      id: "copycatrival", title: "A Rival Is Cloning You", icon: "🪞",
+      cond: s => s.stats.followers > 2000 || Object.values(s.careers).some(t => t >= 1),
+      text: "Someone is reverse-engineering your entire playbook — your {appNoun}, your captions, even your typos — and shipping it under a slicker logo.",
+      choices: [
+        { label: "Sabotage with a fake leak", result: "You 'leaked' a roadmap full of terrible ideas. They built all of it. Their launch was a museum of your worst thoughts.", luckCheck: 0.55,
+          effect: s => ({ reputation: 8, ego: 6, followers: 600 }),
+          failResult: "The fake leak got traced back to you. Now YOU look like the petty one. The internet has receipts.",
+          failEffect: s => ({ reputation: -15, happiness: -8, stress: 12 }) },
+        { label: "Just ship faster than them", result: "You out-built them in the open. By the time they copied v1, you were on v4. Speed is a moat.",
+          effect: s => ({ skillXp: { amount: 350 }, motivation: 14, reputation: 12, stress: 8 }) },
+      ],
+    },
+    {
+      id: "buyoutultimatum", title: "Buy-Out Ultimatum", icon: "⏳",
+      cond: s => s.money > 500000 && Object.values(s.careers).some(t => t >= 2),
+      text: "{bigco} slides a number across the table and a deadline under it: 'Sell by midnight, or we fund your competitor and bury you.'",
+      choices: [
+        { label: "Sell and walk away rich", result: "You signed at 11:58 PM. Generational money, zero regrets, one slightly empty feeling. Worth it.",
+          effect: s => ({ money: wf(2400) + 200000, happiness: 12, motivation: -15, reputation: 6 }) },
+        { label: "Call the bluff", result: "You said no. They actually did fund your rival — and your rival imploded. You now own the whole lane.", luckCheck: 0.45,
+          effect: s => ({ reputation: 30, motivation: 20, incomeBoost: { mult: 3, sec: 240 }, ego: 12 }),
+          failResult: "They weren't bluffing. The war chest they aimed at you was real, and it hurt. A lot.",
+          failEffect: s => ({ moneyPct: -0.35, stress: 25, motivation: -10 }) },
+      ],
+    },
+    {
+      id: "breakthrough", title: "This Could Break the Internet", icon: "💥",
+      cond: s => s.stats.followers > 500,
+      text: "You're holding a piece of content so good it scares you. Post it now and it either makes your career or vanishes into the void at the wrong hour.",
+      choices: [
+        { label: "Post it NOW", result: "It detonated. Every metric you have just hit the ceiling and then asked for a higher ceiling.", luckCheck: 0.55,
+          effect: s => ({ cutscene: "viral", followers: 12000 + s.stats.followers * 0.3, reputation: 25, money: wf(600), incomeBoost: { mult: 3, sec: 200 } }),
+          failResult: "You posted at the worst possible moment. Twelve people saw it. The algorithm scrolled past your dreams.",
+          failEffect: s => ({ followers: 100, motivation: -10, stress: 8 }) },
+        { label: "Sit on it, plan a rollout", result: "You schedule it, tease it, build it up. Calculated. The slow burn pays steady dividends.",
+          effect: s => ({ followers: 2000, reputation: 12, intelligence: 1 }) },
+      ],
+    },
+    {
+      id: "moraldilemma", title: "The Data Is Worth a Fortune", icon: "🩻",
+      cond: s => s.stats.followers > 5000 || s.money > 100000,
+      text: "A broker offers a small fortune for your users' data. It's technically legal-ish. Your users technically trust you. Technically.",
+      choices: [
+        { label: "Sell the data", result: "The wire cleared instantly. So did a small, quiet part of your conscience. You don't check the news for a while.",
+          effect: s => ({ money: wf(1000) + 15000, reputation: -25, happiness: -10, ego: 4 }) },
+        { label: "Refuse and say so loudly", result: "You posted 'we will never sell your data' and meant it. Trust skyrocketed. Some things you can't buy back.",
+          effect: s => ({ reputation: 35, followers: 3000, motivation: 12, happiness: 8 }) },
+      ],
+    },
+    {
+      id: "loyaltytest", title: "Loyalty Test", icon: "🤞",
+      cond: s => Object.keys(s.assets.staff).length >= 1 || Object.values(s.careers).some(t => t >= 2),
+      text: "Your right-hand person got a monster offer from a rival and is asking, point-blank, whether it's worth staying. Everyone's watching how you answer.",
+      choices: [
+        { label: "Match the offer & promote them", result: "Expensive, but they teared up and doubled down. The whole team saw you bet on loyalty. Morale through the roof.",
+          effect: s => ({ moneyPct: -0.08, reputation: 18, motivation: 15, happiness: 6 }) },
+        { label: "Let them choose freely", result: "No pressure, no counter — just respect. They chose to stay. Trust like that you can't fake.", luckCheck: 0.5,
+          effect: s => ({ reputation: 22, motivation: 18, happiness: 10 }),
+          failResult: "They took the rival's money and your roadmap with them. 'No pressure' was, in hindsight, a strategy error.",
+          failEffect: s => ({ reputation: -8, stress: 16, motivation: -12 }) },
+      ],
+    },
+    {
+      id: "marketcrash", title: "Everything Is Crashing", icon: "📉",
+      cond: s => (s.crypto.holdings > 1000) || (WB.ASSETS.investTotal(s) > 5000),
+      text: "The whole market is bleeding out at once. The charts look like a heart monitor flatlining. Panic is selling. Greed is whispering 'buy'.",
+      choices: [
+        { label: "Buy the blood", result: "You caught the falling knife by the handle. The bounce was violent and beautiful. Diamond hands, validated.", luckCheck: 0.5,
+          effect: s => ({ cryptoPct: 0.45, investPct: 0.30, ego: 10, happiness: 12 }),
+          failResult: "The knife had more floors to fall through. You bought the dip, then the dip's dip, then the basement.",
+          failEffect: s => ({ cryptoPct: -0.40, investPct: -0.25, stress: 22, happiness: -12 }) },
+        { label: "Sell everything, sit in cash", result: "You bailed to the sidelines and watched the carnage with a coffee. Boring. Safe. Correct.",
+          effect: s => ({ cryptoPct: -0.10, investPct: -0.06, stress: -4, intelligence: 2 }) },
+      ],
+    },
   ];
 
   // ---------- Minor events (auto-resolve, toast + thought) ----------
@@ -567,6 +721,14 @@ WB.EVENTS = (function () {
       effect: s => ({ happiness: 4, stress: 3 }), bubble: "The fridge wants dental. It doesn't have teeth. We're in negotiations." },
     { w: 0.4, cond: s => s.era >= 4, text: "Mars office reports a dust storm delayed the standup. By four minutes. Of light lag.",
       effect: s => ({ happiness: 3 }), bubble: "Interplanetary meetings. Still could've been an email." },
+
+    // ---- v6.7: crime-heat flavor toasts ----
+    { w: 0.9, cond: s => s.crime && s.crime.heat > 40, text: "A helicopter does one too many laps over your block. You wave. It does not wave back.",
+      effect: s => ({ heat: -6, stress: 4 }), bubble: "Just admiring the architecture, officer. From 500 feet." },
+    { w: 0.8, cond: s => s.crime && s.crime.heat > 30, text: "You take the long way home, change shirts in a parking garage, and ditch your shadow. Spy stuff.",
+      effect: s => ({ heat: -10, energy: -6 }), bubble: "I watch one heist movie and suddenly I have tradecraft." },
+    { w: 0.7, cond: s => s.crime && s.crime.timesCaught > 0, text: "An old cellmate sends a postcard: 'thinking of you. lay low.' Surprisingly touching.",
+      effect: s => ({ heat: -5, happiness: 3 }), bubble: "Greg from the inside still has my back. Loyalty is rare." },
   ];
 
   // ---------- Scheduling / resolution ----------

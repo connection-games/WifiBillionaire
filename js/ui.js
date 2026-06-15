@@ -257,6 +257,12 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.8.0 — The Big One: more action, more to do, more happening", items: [
+      "🎬 SIX new cutscenes: cruise in your car, throw a yacht party, watch a post go viral, a cop car crawling past, a full police RAID, and a shopping-spree montage.",
+      "🛍️ USE your toys! Owned cars, hot tubs, consoles, yachts and more now have a tap-to-use action — go for a drive, throw a party, crush a workout — for real on-demand boosts, not just passive stats.",
+      "🚨 Heat finally bites: when the law's closing in you'll get tense decision popups — 'I've got a bad feeling…', patrol cars crawling by, fixers who can wash your heat — with real choices and real consequences (sometimes a raid).",
+      "💬 Heaps of new events and thoughts across the whole game, so it always feels alive.",
+    ]},
     { v: "v6.7.0 — Golden Opportunities (the game never sits still)", items: [
       "💸 NEW: Golden Opportunities — a coin or cash bubble floats into your room every so often. Tap it before it drifts away!",
       "🔥 Grab one for a big cash burst, a ×3–×5 income FRENZY, a jackpot, or a lucky brain-blast — rewards scale with your operation, so they always matter.",
@@ -958,6 +964,11 @@ WB.UI = (function () {
       const owned = !!st2.life[l.id];
       html += `<div class="card"><div class="card-main"><b>${l.icon} ${l.name}</b>${owned ? ` <span class="tag gold">OWNED</span>` : ""}<div class="muted">${WB.THOUGHTS.fill(l.desc)}</div></div>`;
       if (!owned) html += `<button class="btn buy ${st.money >= l.cost ? "" : "locked"}" data-act="lifestyle" data-key="${l.id}">Buy<span class="cost">${WB.fmt(l.cost, true)}</span></button>`;
+      else if (A.usable && A.usable(l.id)) {
+        const left = A.useLeft(l.id);
+        if (left > 0) html += `<button class="btn use locked" disabled>⏳ ${Math.ceil(left / 1000)}s</button>`;
+        else html += `<button class="btn use" data-act="useitem" data-key="${l.id}">${A.USE[l.id].label}</button>`;
+      }
       html += `</div>`;
     });
     return html;
@@ -1776,6 +1787,7 @@ WB.UI = (function () {
     else if (act === "cryptobuy") G.buyCrypto(0.25);
     else if (act === "cryptosell") G.sellCrypto();
     else if (act === "lifestyle") WB.ASSETS.buyLifestyle(key);
+    else if (act === "useitem") WB.ASSETS.useLifestyle(key);
     else if (act === "hire") WB.ASSETS.hire(key);
     else if (act === "fire") WB.ASSETS.fire(key);
     else if (act === "invbuy10") WB.ASSETS.investBuy(key, 0.10);
