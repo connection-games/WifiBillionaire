@@ -4,6 +4,7 @@
   --bg: #f5f5f7;
   --panel: #ffffff;
   --panel2: #f5f5f7;
+  --hover: #ebebf0;
   --border: rgba(0, 0, 0, 0.08);
   --border-soft: rgba(0, 0, 0, 0.05);
   --text: #1d1d1f;
@@ -78,7 +79,7 @@ b { font-weight: 600; }
   border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 15px;
   transition: all 0.15s;
 }
-#settings-btn:hover { color: var(--text); background: #ebebf0; }
+#settings-btn:hover { color: var(--text); background: var(--hover); }
 
 #goal-banner {
   padding: 8px 22px; background: rgba(255, 255, 255, 0.6);
@@ -486,6 +487,7 @@ html[data-theme="dark"] {
   --bg: #161617;
   --panel: #1d1d1f;
   --panel2: #2c2c2e;
+  --hover: #3a3a3c;
   --border: rgba(255, 255, 255, 0.14);
   --border-soft: rgba(255, 255, 255, 0.08);
   --text: #f5f5f7;
@@ -516,6 +518,8 @@ html[data-theme="dark"] .btn.primary { background: var(--accent); color: #fff; }
 html[data-theme="dark"] .btn.primary:hover { background: var(--accent-hover); }
 html[data-theme="dark"] .btn.danger { background: rgba(255, 69, 58, 0.16); color: var(--red); }
 html[data-theme="dark"] .btn.subtle { background: transparent; }
+html[data-theme="dark"] .btn.subtle:hover { background: rgba(255, 255, 255, 0.08); }
+html[data-theme="dark"] .btn.danger:hover { background: rgba(255, 69, 58, 0.26); }
 html[data-theme="dark"] .btn.buy { background: rgba(41, 151, 255, 0.14); color: #6cb8ff; }
 html[data-theme="dark"] .btn.buy:hover { background: rgba(41, 151, 255, 0.24); }
 html[data-theme="dark"] .btn.choice { background: var(--panel2); }
@@ -811,7 +815,7 @@ html[data-theme="dark"] .upd-track { background: #3a3a3c; }
   border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 14px;
   transition: all 0.15s;
 }
-#notif-btn:hover { color: var(--text); background: #ebebf0; }
+#notif-btn:hover { color: var(--text); background: var(--hover); }
 html[data-theme="dark"] #notif-btn { background: #2c2c2e; border-color: var(--border-soft); }
 #notif-badge {
   position: absolute; top: -5px; right: -7px; min-width: 18px; height: 18px;
@@ -892,19 +896,23 @@ html[data-theme="dark"] #notif-btn { background: #2c2c2e; border-color: var(--bo
   background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--hc); padding: 3px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
 }
-/* Underworld category sub-tabs */
+/* Underworld category sub-tabs — segmented control (matches the app's tab style) */
 .crime-cats {
-  display: flex; gap: 6px; margin: 14px 0 4px; overflow-x: auto; padding-bottom: 4px;
+  display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px;
+  background: var(--panel2); border-radius: 13px; overflow-x: auto;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .crime-cats::-webkit-scrollbar { display: none; }
 .crime-cat-chip {
-  flex: 0 0 auto; background: var(--panel2); border: 1px solid rgba(255, 255, 255, 0.10);
-  color: var(--muted); padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 700;
-  cursor: pointer; font-family: inherit; white-space: nowrap; transition: transform .12s ease, background .15s ease;
+  flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: transparent; border: none; color: var(--muted);
+  padding: 8px 13px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: background .18s ease, color .18s ease;
 }
-.crime-cat-chip:hover { transform: translateY(-1px); }
-.crime-cat-chip.active { background: #ff453a; color: #fff; border-color: #ff453a; box-shadow: 0 4px 12px rgba(255, 69, 58, 0.35); }
+.crime-cat-chip:hover { color: var(--text); }
+.crime-cat-chip.active { background: var(--panel); color: #ff453a; box-shadow: var(--shadow-sm); }
+html[data-theme="dark"] .crime-cat-chip.active { background: #3a3a3c; color: #ff6961; }
 .heat-row { display: flex; align-items: baseline; gap: 5px; margin-top: 9px; }
 .heat-num { font-size: 30px; font-weight: 800; letter-spacing: -1.2px; font-variant-numeric: tabular-nums; }
 .heat-cap { font-size: 11px; color: #98a0b4; font-weight: 600; }
@@ -1501,9 +1509,9 @@ html[data-theme="dark"] .crime-btn:hover { background: rgba(41, 151, 255, 0.24);
   display: flex; align-items: center; gap: 7px; cursor: pointer;
   background: var(--panel2); border: 1px solid var(--border); color: var(--text);
   border-radius: 999px; padding: 5px 12px 5px 9px; font-size: 13px; font-weight: 600;
-  max-width: 160px; position: relative; transition: all 0.15s;
+  max-width: 160px; position: relative; transition: background 0.15s, border-color 0.15s;
 }
-#profile-btn:hover { background: #ebebf0; }
+#profile-btn:hover { background: var(--hover); border-color: var(--muted); }
 #profile-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
 .pf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex: 0 0 auto; }
 .pf-dot.on { background: #34c759; box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }

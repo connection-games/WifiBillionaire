@@ -257,6 +257,10 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.9.1 — UI polish", items: [
+      "✨ Redesigned the crime category tabs into a clean segmented control — much nicer than the old chunky buttons.",
+      "🌙 Fixed ugly hover flashes in dark mode — your profile button, the top-bar icons and several buttons no longer flash light grey when you hover them.",
+    ]},
     { v: "v6.9.0 — Crime Wave + a tighter crew", items: [
       "🌆 The Underworld is now sorted into tabs: 🧤 Street, 💬 Scams, 💻 Hacking, 🎩 Fraud, 📦 Smuggling and 🔫 Robberies.",
       "🦹 TONS more crimes — 46 in total — from pickpocketing and vending-machine raids all the way up to a Museum Heist and the Federal Reserve Job.",
