@@ -210,13 +210,21 @@ WB.GAME = (function () {
     const sk = s.skills[skillKey];
     if (!sk || sk.level >= 100) return;
     sk.xp += amount * xpMult() * speedMult();
+    let levels = 0;
     while (sk.level < 100 && sk.xp >= xpForLevel(sk.level)) {
       sk.xp -= xpForLevel(sk.level);
       sk.level++;
-      UI.toast(`${D.SKILLS[skillKey].icon} ${D.SKILLS[skillKey].name} reached level ${sk.level}!`, "level");
-      UI.bubble(WB.THOUGHTS.react("levelup"));
-      checkPerkOffer();
+      levels++;
     }
+    if (!levels) return;
+    // Player feedback: level-ups buried the intro tutorial. Stay quiet while the
+    // tutorial / onboarding / a modal is up, and coalesce a burst into ONE toast.
+    if (!UI.modalOpen()) {
+      const d = D.SKILLS[skillKey];
+      UI.toast(`${d.icon} ${d.name} ${levels > 1 ? `+${levels} → level ` : "reached level "}${sk.level}!`, "level");
+      UI.bubble(WB.THOUGHTS.react("levelup"));
+    }
+    checkPerkOffer(); // offerPerks already defers itself during the tutorial/scam
   }
   const charLevel = () => Object.values(s.skills).reduce((a, sk) => a + sk.level, 0);
   function checkPerkOffer() {

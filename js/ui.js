@@ -149,7 +149,7 @@ WB.UI = (function () {
     const s = $("scam-app");
     return !!(s && s.classList.contains("open"));
   }
-  function uiBusy() { return modalIsOpen || scamOpen() || tutStep >= 0; }
+  function uiBusy() { return modalIsOpen || scamOpen() || tutStep >= 0 || !!document.getElementById("onboard"); }
   function openModal(html) {
     modalIsOpen = true;
     $("modal-content").innerHTML = html;
@@ -266,6 +266,10 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.0.1 — Smoother start (player feedback 🙏)", items: [
+      "🎓 The intro tutorial is no longer buried under level-up popups — level-ups stay quiet while you're reading it, and a burst of levels now shows as a single tidy toast.",
+      "🪟 Windows: smoother installer — it now installs just for you with no admin prompt and no confusing folder step, so it launches reliably.",
+    ]},
     { v: "v7.0.0 — MULTIPLAYER HEISTS 🤝", items: [
       "👥 NEW: real co-op heist lobbies! On any robbery, hit Crew to open a lobby, invite online friends AND players, and pull the job together.",
       "✅ Everyone readies up before the host rolls out — a bigger crew means lower risk and a bigger score, with a cut sent to every member.",
