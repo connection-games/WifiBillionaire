@@ -107,6 +107,9 @@
       </aside>
 
     </main>
+
+    <!-- Ad banner (browser build only; empty until AdinPlay is wired) -->
+    <div id="ad-banner" class="ad-banner"></div>
   </div>
 
   <div id="toasts"></div>
@@ -188,6 +191,10 @@
   <script src="js/room.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/opportunities.js"></script>
+  <!-- AdinPlay ads: paste your approved tag <script> here (browser build only).
+       e.g. <script async src="//api.adinplay.com/libs/aiptag/pub/XXXX/connection-games.github.io/tag.min.js"></script>
+       Then fill CONFIG in js/ads.js. Until then a built-in placeholder ad is used. -->
+  <script src="js/ads.js"></script>
   <!-- Firebase cloud (leaderboard + presence) — ES module, loads after the game -->
   <script type="module" src="js/cloud.js"></script>
   <script>

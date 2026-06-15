@@ -237,26 +237,38 @@ WB.UI = (function () {
       const bd = cur ? "#4dde80" : "rgba(255,255,255,.10)";
       return `<div style="flex:1;max-width:46px;padding:9px 0;border-radius:11px;font-size:12px;font-weight:800;text-align:center;background:${bg};color:${col};border:1px solid ${bd}">${past ? "✓" : n === 7 ? "🎁" : "D" + n}</div>`;
     }).join("");
+    const canAd = WB.ADS && WB.ADS.enabled; // rewarded "watch to double" — browser build only
     openModal(`
       <div class="ev-icon">📅</div>
       <h2>Daily Reward</h2>
       <p>Day <b>${streak}</b> of your login streak${day === 7 ? " — <b>payday!</b> 🎁" : ""}. Keep showing up.</p>
       <div style="display:flex;gap:6px;justify-content:center;margin:14px 2px">${pips}</div>
       <div class="offline-amount">${WB.fmt(reward, true)}</div>
-      <button class="btn primary" id="daily-claim">Claim 💰</button>`);
-    $("daily-claim").onclick = () => {
-      WB.GAME.earn(reward);
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn primary" id="daily-claim">Claim 💰</button>
+        ${canAd ? `<button class="btn" id="daily-double">📺 Double it (watch ad)</button>` : ""}
+      </div>`);
+    const finish = (amt, doubled) => {
+      WB.GAME.earn(amt);
       writeDaily({ last: tKey, streak });
       confetti();
-      toast(`📅 Day ${streak} reward: ${WB.fmt(reward, true)}!`, "good");
-      if (WB.CG && WB.CG.happytime && day === 7) WB.CG.happytime();
+      toast(`📅 Day ${streak} reward: ${WB.fmt(amt, true)}${doubled ? " (×2!)" : ""}!`, "good");
+      if (WB.CG && WB.CG.happytime && (day === 7 || doubled)) WB.CG.happytime();
       if (WB.GAME.save) WB.GAME.save();
       closeModal();
+    };
+    $("daily-claim").onclick = () => finish(reward, false);
+    if (canAd) $("daily-double").onclick = () => {
+      const btn = $("daily-double"); if (btn) { btn.disabled = true; btn.textContent = "📺 Loading ad…"; }
+      WB.ADS.rewarded(() => finish(reward * 2, true));
     };
   }
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.9.2 — Watch-to-double", items: [
+      "📺 (Web version) Claim your Daily Reward, then optionally watch a short ad to DOUBLE it. Desktop app stays ad-free.",
+    ]},
     { v: "v6.9.1 — UI polish", items: [
       "✨ Redesigned the crime category tabs into a clean segmented control — much nicer than the old chunky buttons.",
       "🌙 Fixed ugly hover flashes in dark mode — your profile button, the top-bar icons and several buttons no longer flash light grey when you hover them.",
@@ -2414,6 +2426,7 @@ WB.UI = (function () {
       : "Right. Where was I? Ah yes — getting rich.");
     scheduleThoughts();
     maybeDailyReward(); // come-back-daily cash bonus (waits for any onboarding/tutorial modal)
+    if (WB.ADS && WB.ADS.banner) WB.ADS.banner($("ad-banner")); // browser build only; empty until AdinPlay wired
 
     setInterval(renderHud, 200);
     setInterval(bubbleTrack, 120); // thought bubble follows him around the room
