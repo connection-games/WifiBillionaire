@@ -257,6 +257,11 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v6.7.0 — Golden Opportunities (the game never sits still)", items: [
+      "💸 NEW: Golden Opportunities — a coin or cash bubble floats into your room every so often. Tap it before it drifts away!",
+      "🔥 Grab one for a big cash burst, a ×3–×5 income FRENZY, a jackpot, or a lucky brain-blast — rewards scale with your operation, so they always matter.",
+      "🎯 It keeps the idle loop alive and rewarding from the very first minutes — eyes on the screen, hands on the cash.",
+    ]},
     { v: "v6.6.2 — Heists hit harder", items: [
       "🎬 The win/loss now only reveals AFTER the heist cutscene plays — no more spoiling it before the movie.",
       "💥 NEW failure cutscene made just for heists: alarm, bullets flying, a police chase, then the ride to jail (separate from the normal arrest scene).",
