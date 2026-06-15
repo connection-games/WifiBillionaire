@@ -20,7 +20,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import {
   getFirestore, doc, setDoc, getDocs, collection, query,
   orderBy, limit, where, serverTimestamp, Timestamp,
-  onSnapshot, addDoc, deleteDoc, getDoc, updateDoc, deleteField,
+  onSnapshot, addDoc, deleteDoc, getDoc, updateDoc, deleteField, increment,
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -363,6 +363,125 @@ Cloud.sendAdminReply = async function (uid, text, fromName) {
   try {
     await addDoc(collection(db, "scores", uid, "inbox"),
       { type: "devreply", text: String(text || "").slice(0, 400), fromName: String(fromName || "Dev").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+// ============================================================ GANGS / SYNDICATES (persistent crews)
+// A gang lives at gangs/{gangId}; the boss creates it, members join, everyone
+// pools earnings into the shared pot, and the boss claims + splits the pot
+// (each member's cut drops into their inbox — reuses the gift inbox plumbing).
+// Invites reuse scores/{uid}/inbox too (type:"ganginvite"), streamed by Cloud.watchInbox.
+Cloud.createGang = async function (name, myName) {
+  if (!Cloud.enabled || !db) return null;
+  const gangId = `${Cloud.uid}_gang`;
+  const n = String(myName || "Anon").slice(0, 24);
+  try {
+    await setDoc(doc(db, "gangs", gangId), {
+      id: gangId, boss: Cloud.uid, bossName: n,
+      name: String(name || "Syndicate").slice(0, 24),
+      members: { [Cloud.uid]: { name: n, boss: true } },
+      pot: 0, ts: serverTimestamp(),
+    });
+    return gangId;
+  } catch (e) { Cloud.lastError = e.message; return null; }
+};
+
+Cloud.joinGang = async function (gangId, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    const snap = await getDoc(doc(db, "gangs", gangId));
+    if (!snap.exists()) return false;
+    await updateDoc(doc(db, "gangs", gangId),
+      { [`members.${Cloud.uid}`]: { name: String(myName || "Anon").slice(0, 24), boss: false } });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+Cloud.leaveGang = async function (gangId, isBoss) {
+  if (!Cloud.enabled || !db) return;
+  try {
+    if (isBoss) {
+      await deleteDoc(doc(db, "gangs", gangId));
+    } else {
+      await updateDoc(doc(db, "gangs", gangId), { [`members.${Cloud.uid}`]: deleteField() });
+    }
+  } catch (e) { Cloud.lastError = e.message; }
+};
+
+Cloud.watchGang = function (gangId, cb) {
+  if (!Cloud.enabled || !db) { cb(null); return () => {}; }
+  return onSnapshot(doc(db, "gangs", gangId),
+    (s) => cb(s.exists() ? s.data() : null), () => cb(null));
+};
+
+Cloud.fetchGang = async function (gangId) {
+  if (!Cloud.enabled || !db) return null;
+  try {
+    const snap = await getDoc(doc(db, "gangs", gangId));
+    return snap.exists() ? snap.data() : null;
+  } catch (e) { Cloud.lastError = e.message; return null; }
+};
+
+Cloud.contributeToGang = async function (gangId, amount) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await updateDoc(doc(db, "gangs", gangId), { pot: increment(Math.max(0, Math.floor(amount || 0))) });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+// boss splits the pot: each member gets an equal share dropped into their inbox, pot resets to 0
+Cloud.claimGangPot = async function (gangId, myName) {
+  if (!Cloud.enabled || !db) return 0;
+  try {
+    const snap = await getDoc(doc(db, "gangs", gangId));
+    if (!snap.exists()) return 0;
+    const data = snap.data();
+    const pot = data.pot || 0;
+    const members = data.members || {};
+    const ids = Object.keys(members);
+    if (pot <= 0 || ids.length === 0) return 0;
+    const n = String(myName || "Anon").slice(0, 24);
+    // Split by the boss-set cut weights when present; otherwise split evenly.
+    const totalCut = ids.reduce((a, u) => a + (members[u].cut > 0 ? members[u].cut : 0), 0);
+    let biggest = 0;
+    for (const uid of ids) {
+      const w = members[uid].cut > 0 ? members[uid].cut : 0;
+      const share = totalCut > 0 ? Math.floor(pot * (w / totalCut)) : Math.floor(pot / ids.length);
+      if (share > biggest) biggest = share;
+      await addDoc(collection(db, "scores", uid, "inbox"),
+        { type: "gangcut", amount: share, gang: data.name || "the syndicate",
+          from: Cloud.uid, fromName: n, ts: serverTimestamp() });
+    }
+    await updateDoc(doc(db, "gangs", gangId), { pot: 0 });
+    return biggest;
+  } catch (e) { Cloud.lastError = e.message; return 0; }
+};
+// Boss-only management: rename the family, set a member's role + cut weight.
+Cloud.renameGang = async function (gangId, name) {
+  if (!Cloud.enabled || !db) return false;
+  try { await updateDoc(doc(db, "gangs", gangId), { name: String(name || "The Family").slice(0, 24) }); return true; }
+  catch (e) { Cloud.lastError = e.message; return false; }
+};
+Cloud.setGangMember = async function (gangId, uid, role, cut) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await updateDoc(doc(db, "gangs", gangId), {
+      [`members.${uid}.role`]: String(role || "Soldier").slice(0, 16),
+      [`members.${uid}.cut`]: Math.max(0, Math.min(100, Math.floor(cut || 0))),
+    });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
+// invite a friend by dropping into their existing inbox (Cloud.watchInbox already streams it)
+Cloud.sendGangInvite = async function (targetUid, gangId, gangName, myName) {
+  if (!Cloud.enabled || !db) return false;
+  try {
+    await addDoc(collection(db, "scores", targetUid, "inbox"),
+      { type: "ganginvite", gangId, gangName: String(gangName || "a gang").slice(0, 24),
+        from: Cloud.uid, fromName: String(myName || "Anon").slice(0, 24), ts: serverTimestamp() });
     return true;
   } catch (e) { Cloud.lastError = e.message; return false; }
 };

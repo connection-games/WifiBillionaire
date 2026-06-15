@@ -165,6 +165,8 @@ by Firestore rules, not by hiding it. To take the cloud live, in the
          allow read, write: if request.auth != null;
          match /msgs/{m} { allow read, create: if request.auth != null; }
        }
+       // mafia / syndicate gangs (create/join/pot/roles). Invites reuse /inbox above.
+       match /gangs/{id} { allow read, write: if request.auth != null; }
      }
    }
    ```

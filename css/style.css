@@ -190,19 +190,33 @@ b { font-weight: 600; }
 
 /* ---------- Activity bar + hustle ---------- */
 #controls { display: flex; gap: 10px; align-items: stretch; }
-#activities { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+#activities { display: flex; gap: 7px; flex-wrap: wrap; flex: 1; }
 .act-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  background: var(--panel); border: 1px solid var(--border-soft); color: var(--text);
-  border-radius: 12px; padding: 7px 10px; cursor: pointer; min-width: 74px;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  background: var(--panel); border: 1.5px solid var(--border-soft); color: var(--text);
+  border-radius: 14px; padding: 8px 12px; cursor: pointer; min-width: 78px;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.1s, border-color 0.15s, background 0.15s;
+  transition: transform 0.12s ease, border-color 0.18s, background 0.18s, box-shadow 0.18s;
 }
-.act-btn span { font-size: 18px; }
-.act-btn small { font-size: 10px; color: var(--muted); font-weight: 500; }
-.act-btn:hover { transform: translateY(-1px); border-color: rgba(0, 113, 227, 0.4); }
-.act-btn.active { background: var(--accent-tint); border-color: var(--accent); }
-.act-btn.active small { color: var(--accent); font-weight: 700; }
+.act-btn span { font-size: 20px; transition: transform 0.18s ease; }
+.act-btn small { font-size: 10px; color: var(--muted); font-weight: 600; }
+.act-btn:hover { transform: translateY(-2px); border-color: var(--accent); }
+.act-btn:hover span { transform: scale(1.14); }
+.act-btn.active {
+  background: linear-gradient(180deg, var(--accent-tint), transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(41, 151, 255, 0.16), var(--shadow-sm);
+}
+.act-btn.active small { color: var(--accent); font-weight: 800; }
+.act-btn.active span { animation: actAlive 1.7s ease-in-out infinite; }
+@keyframes actAlive { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.1); } }
+/* a pulsing green "live" dot on whatever he's doing right now */
+.act-btn.active::after {
+  content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: #34c759; animation: actLiveDot 1.4s ease-out infinite;
+}
+@keyframes actLiveDot { 0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
 .act-btn.locked { opacity: 0.4; cursor: not-allowed; }
 #hustle-btn {
   background: linear-gradient(180deg, #0077ed, #0064cf); border: none; border-radius: 16px;
@@ -897,8 +911,14 @@ html[data-theme="dark"] #notif-btn { background: #2c2c2e; border-color: var(--bo
   color: var(--hc); padding: 3px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
 }
 /* Underworld category sub-tabs — segmented control (matches the app's tab style) */
+.crime-types-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); margin: 14px 2px 6px; }
+.crime-types-hint { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: none; letter-spacing: 0; animation: crimeHintSlide 1.8s ease-in-out infinite; }
+@keyframes crimeHintSlide { 0%,100% { opacity: .55; transform: translateX(0); } 50% { opacity: 1; transform: translateX(3px); } }
+.crime-cats-wrap { position: relative; margin-bottom: 12px; }
+/* right-edge fade hints there are more categories to scroll to */
+.crime-cats-wrap::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 34px; border-radius: 0 13px 13px 0; pointer-events: none; background: linear-gradient(to right, transparent, var(--panel2)); }
 .crime-cats {
-  display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px;
+  display: flex; gap: 4px; margin: 0; padding: 4px;
   background: var(--panel2); border-radius: 13px; overflow-x: auto;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
@@ -2271,3 +2291,199 @@ html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
 }
 .invite-decline:hover { background: var(--hover); color: var(--text); }
 .invite-decline:active { transform: scale(0.97); }
+
+/* ============================================================
+   Mafia / Syndicate gang UI  (v7.x)
+   Premium, a-little-dangerous pinstripe-suit look: deep tones
+   with GOLD accents. Built on the existing tokens so it stays
+   dark-mode safe. The hero is intentionally dark in BOTH themes
+   (same approach as .crime-hero / .lobby-hero), so gold tints
+   on it read correctly without a light fallback.
+   ============================================================ */
+
+/* ---------- Header band ---------- */
+.gang-hero {
+  display: flex; align-items: center; gap: 14px;
+  border-radius: 18px; padding: 16px 18px; margin-bottom: 12px;
+  /* rich, gold-tinted noir gradient */
+  background: linear-gradient(135deg, #1a160f 0%, #241a12 45%, #2c1820 100%);
+  color: #f6f1e6; border: 1px solid rgba(255, 200, 90, 0.18);
+  box-shadow: 0 12px 32px rgba(12, 8, 4, 0.34), inset 0 1px 0 rgba(255, 215, 120, 0.10);
+  position: relative; overflow: hidden;
+  animation: gangRise 0.42s var(--ease) both;
+}
+/* warm gold glow sweep behind the suited-figure icon */
+.gang-hero::before {
+  content: ""; position: absolute; top: -45%; left: -8%;
+  width: 230px; height: 230px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 184, 64, 0.28), transparent 70%);
+  pointer-events: none;
+}
+/* faint diagonal pinstripe texture for the suit feel */
+.gang-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background: repeating-linear-gradient(115deg, transparent 0 13px, rgba(255, 215, 140, 0.035) 13px 14px);
+}
+.gang-hero-ico {
+  flex: 0 0 auto; width: 56px; height: 56px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+  background: rgba(255, 215, 130, 0.10); border: 1px solid rgba(255, 215, 130, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 150, 0.16);
+  position: relative; z-index: 1;
+}
+.gang-hero-main { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.gang-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.2; }
+.gang-hero-sub { font-size: 11.5px; color: #c9b394; margin-top: 3px; font-weight: 600; }
+
+/* ---------- Collective pot ---------- */
+.gang-pot-box {
+  position: relative; z-index: 1; flex: 0 0 auto; text-align: right;
+  align-self: stretch; display: flex; flex-direction: column; justify-content: center;
+  padding: 8px 14px; border-radius: 14px;
+  background: rgba(255, 195, 80, 0.08); border: 1px solid rgba(255, 200, 90, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 150, 0.10);
+}
+.gang-pot {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+  color: #ffcf5c; text-shadow: 0 1px 10px rgba(255, 184, 64, 0.35);
+}
+.gang-pot-label {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.8px;
+  text-transform: uppercase; color: #b9a079; margin-top: 2px;
+}
+
+/* ---------- Section labels (match .fr-section / .lobby-section) ---------- */
+.gang-section {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--muted); margin: 14px 2px 7px;
+}
+
+/* ---------- Member roster ---------- */
+.gang-members { display: flex; flex-direction: column; gap: 6px; }
+.gang-member {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 13px;
+  background: var(--panel); border: 1px solid var(--border-soft);
+  transition: transform 0.14s var(--ease), border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: gangRise 0.4s var(--ease) both;
+}
+.gang-member:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); border-color: rgba(255, 159, 10, 0.3); }
+/* gradient avatar disc with a centered initial — gold/bronze take on .lobby-avatar */
+.gang-avatar {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: #2a1c06; text-transform: uppercase;
+  background: linear-gradient(135deg, #ffd874, #d99a2b);
+  box-shadow: 0 2px 7px rgba(180, 120, 20, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.gang-mname {
+  flex: 1; min-width: 0; font-weight: 700; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* BOSS pill — the gold badge of the don */
+.gang-boss-tag {
+  flex: 0 0 auto; font-size: 9px; font-weight: 900; letter-spacing: 0.8px;
+  padding: 2px 8px; border-radius: 999px; color: var(--gold);
+  background: rgba(255, 159, 10, 0.14); border: 1px solid rgba(255, 159, 10, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.06);
+}
+
+/* ---------- Recruit / invite ---------- */
+.gang-invite { display: flex; flex-direction: column; gap: 6px; }
+.gang-invite-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 12px; border-radius: 13px;
+  background: var(--panel); border: 1px solid var(--border-soft);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.gang-invite-row:hover { border-color: rgba(255, 159, 10, 0.28); }
+.gang-invite-name {
+  flex: 1; min-width: 0; font-weight: 600; font-size: 13.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gang-invite-btn {
+  flex: 0 0 auto; font-family: inherit; cursor: pointer;
+  font-size: 11.5px; font-weight: 800; padding: 6px 13px; border-radius: 999px;
+  color: var(--gold); background: rgba(255, 159, 10, 0.14);
+  border: 1px solid rgba(255, 159, 10, 0.28);
+  transition: transform 0.12s var(--ease), background 0.16s, box-shadow 0.16s;
+}
+.gang-invite-btn:hover { transform: translateY(-1px); background: rgba(255, 159, 10, 0.22); box-shadow: var(--shadow-sm); }
+.gang-invite-btn:active { transform: scale(0.96); }
+.gang-invite-btn.invited {
+  color: var(--muted); background: var(--panel2);
+  border-color: var(--border-soft); cursor: default;
+  transform: none; box-shadow: none; opacity: 0.8;
+}
+
+/* ---------- Footer actions ---------- */
+.gang-foot { display: flex; gap: 8px; margin-top: 14px; }
+.gang-btn {
+  flex: 1; font-family: inherit; cursor: pointer;
+  font-size: 13.5px; font-weight: 800; padding: 12px 14px; border-radius: 14px;
+  color: var(--text); background: var(--panel2); border: 1px solid var(--border-soft);
+  transition: transform 0.12s var(--ease), filter 0.15s, background 0.16s, box-shadow 0.16s;
+}
+.gang-btn:hover { background: var(--hover); }
+.gang-btn:active { transform: scale(0.97); }
+/* prominent gold CTA — "Split the pot" */
+.gang-btn.claim {
+  color: #2a1c06; border-color: transparent;
+  background: linear-gradient(135deg, #ffd874 0%, #f5b333 55%, #d99a2b 100%);
+  box-shadow: 0 4px 14px rgba(200, 140, 30, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.gang-btn.claim:hover { filter: brightness(1.05); box-shadow: 0 6px 18px rgba(200, 140, 30, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.gang-btn.claim:disabled {
+  cursor: not-allowed; filter: grayscale(0.7); opacity: 0.5;
+  background: var(--panel2); color: var(--muted); border-color: var(--border-soft);
+  box-shadow: none; transform: none;
+}
+/* subtle, slightly dangerous "leave the family" action */
+.gang-btn.leave {
+  flex: 0 0 auto; color: var(--red); background: transparent;
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+}
+.gang-btn.leave:hover { background: color-mix(in srgb, var(--red) 12%, transparent); }
+
+/* ---------- Create-a-syndicate form ---------- */
+.gang-create { display: flex; flex-direction: column; gap: 10px; }
+.gang-create-input {
+  width: 100%; box-sizing: border-box; font-family: inherit;
+  font-size: 15px; font-weight: 700; padding: 12px 14px; border-radius: 12px;
+  color: var(--text); background: var(--panel2); border: 1px solid var(--border);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.gang-create-input::placeholder { color: var(--muted); font-weight: 600; }
+.gang-create-input:focus {
+  outline: none; border-color: rgba(255, 159, 10, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.16);
+}
+
+/* ---------- Empty state ---------- */
+.gang-empty {
+  text-align: center; color: var(--muted); font-size: 12.5px; font-weight: 600;
+  padding: 18px 14px; line-height: 1.5;
+}
+
+/* ---------- Mafia crime-card note ---------- */
+.mafia-crime-note {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 700; line-height: 1.4;
+  color: var(--gold); margin-top: 2px;
+  padding: 5px 9px; border-radius: 9px;
+  background: rgba(255, 159, 10, 0.10); border: 1px solid rgba(255, 159, 10, 0.22);
+}
+
+/* ---------- Entrance keyframes (gang-prefixed) ---------- */
+@keyframes gangRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* v7.1 — gang management (roles, cuts, rename) */
+.gang-role { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 1px; }
+.gang-edit { background: var(--panel2); border: 1px solid var(--border-soft); color: var(--muted); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; flex: 0 0 auto; font-size: 13px; }
+.gang-edit:hover { color: var(--text); background: var(--hover); }
+.gang-rename { display: flex; gap: 6px; margin: 8px 0 4px; }
+.gang-rename .gang-create-input { flex: 1; margin: 0; }

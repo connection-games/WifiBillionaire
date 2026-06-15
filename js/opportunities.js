@@ -22,6 +22,8 @@
   function busy() {
     if (document.getElementById("splash")) return true;
     if (WB.ROOM && WB.ROOM.cutActive && WB.ROOM.cutActive()) return true;
+    if (document.querySelector(".plan-overlay")) return true; // not during heist planning
+    if (document.getElementById("onboard")) return true;
     if (WB.CRIME && WB.CRIME.inPrison && WB.CRIME.inPrison()) return true;
     const ov = document.getElementById("modal-overlay");
     if (ov && ov.classList.contains("open")) return true;

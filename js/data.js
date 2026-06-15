@@ -84,6 +84,13 @@ WB.DATA = (function () {
         { name: "Studio Owner",  income: 75,    reqSkill: 28, cost: 3.5e5,  reqRep: 48 },
         { name: "Gaming Empire", income: 2400,  reqSkill: 54, cost: 4e7,    reqRep: 200 },
       ] },
+    mafia: { name: "Made Man", icon: "🕴️", skill: "business", reqEra: 0,
+      tiers: [
+        { name: "Associate",  income: 2.6,   reqSkill: 5,  cost: 600,    reqRep: 0 },
+        { name: "Soldier",    income: 34,    reqSkill: 17, cost: 32000,  reqRep: 14 },
+        { name: "Capo",       income: 460,   reqSkill: 35, cost: 2.2e6,  reqRep: 90 },
+        { name: "Don",        income: 5400,  reqSkill: 53, cost: 9e7,    reqRep: 260 },
+      ] },
   };
 
   // ---------- Skills ----------
@@ -103,6 +110,7 @@ WB.DATA = (function () {
     crypto:  { name: "Trade Crypto",   icon: "🪙", skill: "trading", career: "crypto",     work: true },
     ai:      { name: "Build AI",       icon: "🤖", skill: "ai",      career: "ai",         work: true, reqEra: 2 },
     gamedev: { name: "Make Games",     icon: "🕹️", skill: "gamedev", career: "gamedev",    work: true },
+    mafia:   { name: "Run Rackets",    icon: "🕴️", skill: "business", career: "mafia",     work: true },
     study:   { name: "Study",          icon: "📚", skill: null,      career: null,         work: true, jail: true },
     rest:    { name: "Sleep",          icon: "😴", work: false, jail: true },
     grass:   { name: "Touch Grass",    icon: "🌱", work: false },
@@ -282,7 +290,7 @@ WB.DATA = (function () {
 })();
 
 // ---------- Build version (keep in sync with package.json) ----------
-WB.VERSION = "7.1.0";
+WB.VERSION = "7.2.0";
 
 // ---------- Number formatting ----------
 WB.fmt = function (n, money) {

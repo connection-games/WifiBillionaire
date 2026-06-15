@@ -121,6 +121,7 @@ WB.UI = (function () {
     text = WB.t(text); // constant toasts translate; composed ones pass through
     pushNotif(text, type); // everything is collected in the inbox
     if (!POPUP_TYPES.has(type || "info")) return; // chatty stuff stays in the inbox
+    if (cutOrPlan()) return; // never pop a toast over a cutscene or the planning board — it's in the inbox
     if (text === lastToastText && Date.now() - lastToastAt < 5000) return; // de-dupe bursts
     lastToastText = text; lastToastAt = Date.now();
     const box = $("toasts");
@@ -137,6 +138,7 @@ WB.UI = (function () {
         <div class="toast-msg">${esc(body)}</div>
       </div>`;
     box.appendChild(el);
+    if (WB.SOUND) { const snd = { level: "level", ach: "level", goal: "win", era: "win", viral: "win" }[type]; if (snd) WB.SOUND.play(snd); }
     while (box.children.length > 4) box.removeChild(box.firstChild);
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 400); }, 6000);
   }
@@ -152,7 +154,11 @@ WB.UI = (function () {
     const s = $("scam-app");
     return !!(s && s.classList.contains("open"));
   }
-  function uiBusy() { return modalIsOpen || scamOpen() || tutStep >= 0 || !!document.getElementById("onboard"); }
+  // A cutscene is a movie and planning is sacred — NOTHING interrupts them.
+  function cutOrPlan() {
+    return !!(WB.ROOM && WB.ROOM.cutActive && WB.ROOM.cutActive()) || !!document.querySelector(".plan-overlay");
+  }
+  function uiBusy() { return modalIsOpen || scamOpen() || tutStep >= 0 || !!document.getElementById("onboard") || cutOrPlan(); }
   function openModal(html) {
     modalIsOpen = true;
     $("modal-content").innerHTML = html;
@@ -181,8 +187,8 @@ WB.UI = (function () {
     });
   }
   function offerPerks(perks) {
-    // wait while the texting app or the tutorial is up — never stack popups
-    if (scamOpen() || tutStep >= 0) { setTimeout(() => offerPerks(perks), 2500); return; }
+    // wait while ANYTHING important is up (cutscene, planning, texting, tutorial, a modal) — never stack popups
+    if (uiBusy()) { setTimeout(() => offerPerks(perks), 2500); return; }
     openModal(`
       <h2>✨ ${WB.t("Level Up — Choose a Perk")}</h2>
       <p class="muted">${WB.t("Pick one. The other two are lost to the multiverse.")}</p>
@@ -269,6 +275,13 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.2.0 — The Mafia Update 🕴️", items: [
+      "🕴️ NEW: the Mafia — a whole crime category of rackets, a 'Made Man' career path, and real online SYNDICATES: form a family, recruit players, and a cut of every mafia job feeds a shared pot.",
+      "👔 Bosses can rename the family, assign roles (Underboss, Capo, Soldier…) and set each member's cut of the pot.",
+      "🗺️ NEW: every hard job now starts with a PLANNING board — pick your approach, entry, getaway and edge; a tight plan means a much safer score.",
+      "🔊 NEW: sound effects across the game (toggle in Settings → General). 🏚️ Jail now has life — yard time, sleeping, a passing train — with its own prison events.",
+      "🎬 Cutscenes are now sacred — NOTHING pops over them (or the planning board) anymore. Plus: a livelier activity bar, the skill chip shows your real skill level, and the crime types now clearly scroll.",
+    ]},
     { v: "v7.1.0 — Rebirth, socials & a crew shake-up", items: [
       "♻️ Rebirth now FULLY resets your empire — and springs you straight out of jail, instantly.",
       "🌐 NEW: Follow Us links (TikTok, Discord, GitHub, itch.io) in Settings → About, a 'Message the developer' support button, and a 'follow us for a prize' bonus.",
@@ -460,8 +473,8 @@ WB.UI = (function () {
   // Social links. NOTE: GitHub + itch are live; replace the TikTok and Discord
   // URLs below with your real ones (the labels are already what you asked for).
   const SOCIALS = [
-    { id: "tiktok",  icon: "🎵", name: "TikTok",  label: "Wifi Billionaire Game",     url: "https://www.tiktok.com/@wifibillionairegame" },
-    { id: "discord", icon: "💬", name: "Discord", label: "Join Our Discord",          url: "https://discord.gg/wifibillionaire" },
+    { id: "tiktok",  icon: "🎵", name: "TikTok",  label: "Wifi Billionaire Game",     url: "https://www.tiktok.com/@wifi.billionaire.game" },
+    { id: "discord", icon: "💬", name: "Discord", label: "Join Our Discord",          url: "https://discord.gg/uJ9BQ8DXcw" },
     { id: "github",  icon: "🐙", name: "GitHub",  label: "Wifi Billionaire on GitHub", url: "https://github.com/connection-games/WifiBillionaire" },
     { id: "itch",    icon: "🎮", name: "itch.io", label: "Wifi Billionaire on itch.io", url: "https://wifi-billionare.itch.io/wifi-billionaire" },
   ];
@@ -532,9 +545,11 @@ WB.UI = (function () {
       ["showHeat", "🌡️ Show Heat Meter", "Display the crime heat indicator in the HUD."],
       ["autosaveToast", "💾 Autosave Notices", "Pop a tiny toast every time the game saves."],
     ];
+    const soundRow = `<div class="toggle-row"><div><b>${WB.t("🔊 Sound Effects")}</b><div class="muted">${WB.t("Clicks, cha-chings, sirens and big wins.")}</div></div>
+      <button class="switch ${WB.SOUND && !WB.SOUND.isMuted() ? "on" : ""}" data-sound><span></span></button></div>`;
     return langSec + modeSec + `<div class="toggle-list">${toggles.map(([k, label, desc]) =>
       `<div class="toggle-row"><div><b>${WB.t(label)}</b><div class="muted">${WB.t(desc)}</div></div>
-        <button class="switch ${getSetting(k) ? "on" : ""}" data-toggle="${k}"><span></span></button></div>`).join("")}</div>`;
+        <button class="switch ${getSetting(k) ? "on" : ""}" data-toggle="${k}"><span></span></button></div>`).join("")}${soundRow}</div>`;
   }
   // first launch after an auto-update: greet the player with what changed
   function showWhatsNew() {
@@ -643,6 +658,12 @@ WB.UI = (function () {
       if ($("set-import")) $("set-import").onclick = () => { if (!WB.GAME.importSave($("save-blob").value)) alert("Invalid save data."); };
       if ($("set-reset")) $("set-reset").onclick = () => { if (confirm("Delete EVERYTHING including prestige? No takebacks.")) WB.GAME.hardReset(); };
       if ($("support-btn")) $("support-btn").onclick = openSupportDialog;
+      $("set-body").querySelectorAll("[data-sound]").forEach(b => b.onclick = () => {
+        if (!WB.SOUND) return;
+        const muted = WB.SOUND.toggle();
+        b.classList.toggle("on", !muted);
+        if (!muted) WB.SOUND.play("coin");
+      });
     }
     $("modal-content").querySelectorAll("[data-settab]").forEach(b => b.onclick = () => {
       if (b.dataset.settab === "general") bumpAdminTap(); // 5 taps → admin gate
@@ -1460,6 +1481,12 @@ WB.UI = (function () {
   function applyGift(g) {
     WB.CLOUD.clearInbox(g.id);
     if (g.type === "invite") { showInvitePopup(g); return; } // heist-lobby invite → popup
+    if (g.type === "ganginvite") { showGangInvitePopup(g); return; } // syndicate invite → popup
+    if (g.type === "gangcut") { // your share of the syndicate pot
+      WB.GAME.earn(g.amount || 0); if (WB.SOUND) WB.SOUND.play("cash"); confetti();
+      toast(`🕴️ ${esc(g.gang || "The family")} ${WB.t("paid out — your cut:")} ${WB.fmt(g.amount || 0, true)}`, "good");
+      return;
+    }
     if (g.type === "devreply") { // the developer replied to your message
       toast(`💬 ${esc(g.fromName || "The developer")}: ${esc(g.text || "")}`, "good");
       pushNotif(`💬 ${WB.t("Reply from the developer")}: ${g.text || ""}`, "good");
@@ -1848,9 +1875,10 @@ WB.UI = (function () {
     // category sub-tabs
     const cats = C.CATS || [];
     if (!cats.some(x => x.id === crimeCat)) crimeCat = cats[0] ? cats[0].id : "street";
-    html += `<div class="crime-cats">` + cats.map(cat =>
+    html += `<div class="crime-types-label">🗂️ ${WB.t("Crime types")} <span class="crime-types-hint">${WB.t("swipe for more →")}</span></div>`;
+    html += `<div class="crime-cats-wrap"><div class="crime-cats">` + cats.map(cat =>
       `<button class="crime-cat-chip${crimeCat === cat.id ? " active" : ""}" data-act="crimecat" data-key="${cat.id}">${cat.icon} ${WB.t(cat.name)}</button>`
-    ).join("") + `</div>`;
+    ).join("") + `</div></div>`;
 
     if (crimeCat === "scams") {
       const avatars = (WB.SCAM ? WB.SCAM.VICTIMS : []).map(v => `<span title="${v.name}">${v.avatar}</span>`).join("");
@@ -1865,6 +1893,7 @@ WB.UI = (function () {
           <button class="btn primary ${jailed ? "locked" : ""}" data-act="openscam">Open<br>Messages</button>
         </div>`;
     }
+    if (crimeCat === "mafia") html += gangPanel(); // syndicate panel above the mafia jobs
 
     if (crimeCat === "robberies") {
       html += `<div class="section-title">💰 ${WB.t("Hard Jobs")} <span class="hard-hint">${WB.t("· real stakes, real payouts")}</span></div><div class="crime-grid">`;
@@ -1881,29 +1910,39 @@ WB.UI = (function () {
   }
   function doHardJob(id, withFriend, friend) {
     if (WB.ROOM && WB.ROOM.cutActive && WB.ROOM.cutActive()) { toast("🎬 A job's already in motion — let it play out.", "bad"); return; }
-    const r = WB.CRIME.commitHard(id, withFriend);
-    if (!r) return;
-    if (r.refused) { toast("🚫 " + r.refused, "bad"); return; }
-    renderTab(true); renderHud(); // reflect the stake being paid up front
+    const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === id);
+    const el = cr && WB.CRIME.eligibleHard(cr);
+    if (!el || !el.ok) { toast("🚫 " + (el ? el.why : WB.t("Unknown job")), "bad"); return; }
+    if (WB.CRIME.inPrison()) { toast("🚫 " + WB.t("You're in jail. Sit tight."), "bad"); return; }
 
-    // Reveal the outcome only AFTER the cutscene finishes — win or bust.
-    const reveal = () => {
-      WB.CRIME.finalizeHardJob(r); // now the money lands / the jail door closes
-      if (withFriend && friend && r.win) {
-        if (friend.uid === ADAM_UID) toast("🐐 Adam: clean job, partner. Same time next week?", "good");
-        else if (WB.CLOUD && WB.CLOUD.enabled) {
-          const cut = Math.floor(r.money * 0.4);
-          WB.CLOUD.sendHeistCut(friend.uid, cut, playerName(), r.job);
-          toast(`🤝 ${WB.t("Sent")} ${friend.name} ${WB.t("their cut")}: ${WB.fmt(cut, true)}`, "good");
+    // MANDATORY planning — plan quality (0..1) drives the risk.
+    const pull = (planQ) => {
+      if (planQ == null) return; // backed out of planning → no job, no stake spent
+      const r = WB.CRIME.commitHard(id, withFriend, withFriend ? 2 : 1, planQ);
+      if (!r) return;
+      if (r.refused) { toast("🚫 " + r.refused, "bad"); return; }
+      renderTab(true); renderHud(); // reflect the stake being paid up front
+
+      const reveal = () => {
+        WB.CRIME.finalizeHardJob(r); // money lands / jail door closes — after the movie
+        if (WB.SOUND) WB.SOUND.play(r.win ? "win" : "lose");
+        if (withFriend && friend && r.win) {
+          if (friend.uid === ADAM_UID) toast("🐐 Adam: clean job, partner. Same time next week?", "good");
+          else if (WB.CLOUD && WB.CLOUD.enabled) {
+            const cut = Math.floor(r.money * 0.4);
+            WB.CLOUD.sendHeistCut(friend.uid, cut, playerName(), r.job);
+            toast(`🤝 ${WB.t("Sent")} ${friend.name} ${WB.t("their cut")}: ${WB.fmt(cut, true)}`, "good");
+          }
         }
-      }
-      openResult(r);
-      renderTab(true); renderHud();
+        openResult(r);
+        renderTab(true); renderHud();
+      };
+      const scene = r.win ? (withFriend ? "heistDuo" : "heist") : (withFriend ? "heistBustDuo" : "heistBust");
+      if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(scene, reveal);
+      else reveal();
     };
-
-    const scene = r.win ? (withFriend ? "heistDuo" : "heist") : (withFriend ? "heistBustDuo" : "heistBust");
-    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(scene, reveal);
-    else reveal();
+    if (WB.PLANNING && WB.PLANNING.openPlan) WB.PLANNING.openPlan(cr, pull);
+    else pull(0.6);
   }
   function openHeistPicker(id) {
     const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === id);
@@ -2079,17 +2118,23 @@ WB.UI = (function () {
   }
   function startLobbyHeist() {
     const d = lobby.data; if (!d || !lobby.isHost) return;
-    const uids = Object.keys(d.members || {}), crew = uids.length;
-    const r = WB.CRIME.commitHard(lobby.jobId, true, crew);
-    if (!r || r.refused) { toast("🚫 " + ((r && r.refused) || "Can't start."), "bad"); return; }
-    lobby.resolved = true;
-    const id = lobby.id;
-    WB.CLOUD.finishLobby(id, { win: r.win, payout: r.win ? r.money : 0, sentence: r.sentence || 0, by: playerName(), job: r.job });
-    if (r.win) uids.forEach(u => { if (u !== WB.CLOUD.uid) WB.CLOUD.sendHeistCut(u, Math.floor(r.money * 0.35), playerName(), r.job); });
-    stopLobbyWatch(); closeModal(); resetLobby();
-    const reveal = () => { WB.CRIME.finalizeHardJob(r); openResult(r); renderTab(true); renderHud(); };
-    if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(r.win ? "heistDuo" : "heistBustDuo", reveal); else reveal();
-    setTimeout(() => { if (WB.CLOUD.closeLobby) WB.CLOUD.closeLobby(id); }, 9000);
+    const cr = WB.CRIME.HARD_CRIMES.find(x => x.id === lobby.jobId);
+    const pull = (planQ) => {
+      if (planQ == null) return; // host backed out of planning
+      const d2 = lobby.data; if (!d2 || !lobby.id) return;
+      const uids = Object.keys(d2.members || {}), crew = uids.length;
+      const r = WB.CRIME.commitHard(lobby.jobId, true, crew, planQ);
+      if (!r || r.refused) { toast("🚫 " + ((r && r.refused) || "Can't start."), "bad"); return; }
+      lobby.resolved = true;
+      const id = lobby.id;
+      WB.CLOUD.finishLobby(id, { win: r.win, payout: r.win ? r.money : 0, sentence: r.sentence || 0, by: playerName(), job: r.job });
+      if (r.win) uids.forEach(u => { if (u !== WB.CLOUD.uid) WB.CLOUD.sendHeistCut(u, Math.floor(r.money * 0.35), playerName(), r.job); });
+      stopLobbyWatch(); closeModal(); resetLobby();
+      const reveal = () => { WB.CRIME.finalizeHardJob(r); if (WB.SOUND) WB.SOUND.play(r.win ? "win" : "lose"); openResult(r); renderTab(true); renderHud(); };
+      if (WB.ROOM && WB.ROOM.play) WB.ROOM.play(r.win ? "heistDuo" : "heistBustDuo", reveal); else reveal();
+      setTimeout(() => { if (WB.CLOUD.closeLobby) WB.CLOUD.closeLobby(id); }, 9000);
+    };
+    if (WB.PLANNING && WB.PLANNING.openPlan && cr) WB.PLANNING.openPlan(cr, pull); else pull(0.6);
   }
   function resolveLobbyMember(d) {
     const res = d.result || {};
@@ -2137,6 +2182,153 @@ WB.UI = (function () {
     function close() { clearInterval(iv); if (pop.parentNode) pop.remove(); if (invitePop === pop) invitePop = null; }
     pop.querySelector("#inv-no").onclick = close;
     pop.querySelector("#inv-yes").onclick = () => { close(); joinLobbyFlow(g.lobbyId, g.jobId); };
+  }
+
+  // ============================================================ 🕴️ Mafia / Syndicate (persistent gang)
+  const gang = { id: null, data: null, unsub: null, online: [] };
+  function watchMyGang() {
+    if (!WB.CLOUD || !WB.CLOUD.enabled || !gang.id) return;
+    if (gang.unsub) { gang.unsub(); gang.unsub = null; }
+    gang.unsub = WB.CLOUD.watchGang(gang.id, d => {
+      if (!d) { // disbanded by the boss
+        gang.data = null; gang.id = null; try { localStorage.removeItem("wb_gang"); } catch (e) {}
+        if (gang.unsub) { gang.unsub(); gang.unsub = null; }
+        return;
+      }
+      gang.data = d;
+    });
+    if (WB.CLOUD.fetchOnlinePlayers) WB.CLOUD.fetchOnlinePlayers(20).then(l => { gang.online = l || []; });
+  }
+  function loadGang() {
+    try { gang.id = localStorage.getItem("wb_gang") || null; } catch (e) {}
+    if (gang.id) watchMyGang();
+  }
+  function createGangFlow(name) {
+    if (!WB.CLOUD || !WB.CLOUD.enabled) { toast("☁️ " + WB.t("Syndicates need you online."), "bad"); return; }
+    WB.CLOUD.createGang(name, playerName()).then(id => {
+      if (!id) { toast("☁️ " + WB.t("Couldn't form the family."), "bad"); return; }
+      gang.id = id; try { localStorage.setItem("wb_gang", id); } catch (e) {}
+      watchMyGang(); if (WB.SOUND) WB.SOUND.play("win");
+      toast("🕴️ " + WB.t("The family is born. Welcome, boss."), "good"); renderTab(true);
+    });
+  }
+  function joinGangFlow(gangId) {
+    WB.CLOUD.joinGang(gangId, playerName()).then(ok => {
+      if (!ok) { toast("🚫 " + WB.t("That family's already gone."), "bad"); return; }
+      gang.id = gangId; try { localStorage.setItem("wb_gang", gangId); } catch (e) {}
+      watchMyGang(); if (WB.SOUND) WB.SOUND.play("coin");
+      toast("🤝 " + WB.t("You're in the family now."), "good"); renderTab(true);
+    });
+  }
+  function leaveGangFlow() {
+    if (!gang.id) return;
+    const isBoss = gang.data && gang.data.boss === WB.CLOUD.uid;
+    if (WB.CLOUD.leaveGang) WB.CLOUD.leaveGang(gang.id, isBoss);
+    if (gang.unsub) { gang.unsub(); gang.unsub = null; }
+    gang.id = null; gang.data = null; try { localStorage.removeItem("wb_gang"); } catch (e) {}
+    toast(isBoss ? "🕴️ " + WB.t("You disbanded the family.") : "👋 " + WB.t("You left the family."), "bad"); renderTab(true);
+  }
+  function claimGangPotFlow() {
+    if (!gang.id || !WB.CLOUD.claimGangPot) return;
+    WB.CLOUD.claimGangPot(gang.id, playerName()).then(share => {
+      if (share > 0) { if (WB.SOUND) WB.SOUND.play("cash"); toast(`💰 ${WB.t("Pot split — by the cuts you set")}`, "good"); }
+      else toast(WB.t("The pot's empty right now."), "bad");
+    });
+  }
+  const GANG_ROLES = ["Underboss", "Consigliere", "Capo", "Enforcer", "Soldier", "Associate"];
+  function openGangMemberDialog(uid, name) {
+    const m = (gang.data && gang.data.members && gang.data.members[uid]) || {};
+    const ov = document.createElement("div");
+    ov.className = "amt-dialog";
+    ov.innerHTML = `<div class="amt-card">
+      <div class="amt-ico">🕴️</div>
+      <h3>${esc(name)}</h3>
+      <label class="set-label">${WB.t("Role")}</label>
+      <select class="set-input" id="gm-role">${GANG_ROLES.map(r => `<option value="${r}" ${m.role === r ? "selected" : ""}>${WB.t(r)}</option>`).join("")}</select>
+      <label class="set-label">${WB.t("Cut of the pot (%) — 0 = even split")}</label>
+      <input class="set-input" id="gm-cut" type="text" inputmode="numeric" value="${Math.floor(m.cut || 0)}">
+      <div class="amt-row"><button class="btn subtle" id="gm-cancel">${WB.t("Cancel")}</button><button class="btn primary" id="gm-save">${WB.t("Save")}</button></div>
+    </div>`;
+    $("modal-content").appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector("#gm-cancel").onclick = close;
+    ov.querySelector("#gm-save").onclick = () => {
+      const role = ov.querySelector("#gm-role").value;
+      const cut = Math.max(0, Math.min(100, Math.floor(Number((ov.querySelector("#gm-cut").value || "").replace(/[^0-9]/g, "")) || 0)));
+      if (gang.id && WB.CLOUD.setGangMember) WB.CLOUD.setGangMember(gang.id, uid, role, cut);
+      toast(`🕴️ ${esc(name)} → ${WB.t(role)}${cut ? ` · ${cut}%` : ""}`, "good");
+      close();
+    };
+  }
+  function gangPanel() {
+    if (!WB.CLOUD || !WB.CLOUD.enabled) return `<div class="gang-empty">🕴️ ${WB.t("Connect online to run a syndicate.")}</div>`;
+    if (!gang.id || !gang.data) {
+      return `<div class="gang-create">
+        <div class="gang-section">🕴️ ${WB.t("Start a Syndicate")}</div>
+        <p class="muted" style="margin:0 0 8px">${WB.t("Form a family, recruit your crew, and a cut of every mafia job feeds a shared pot the boss splits.")}</p>
+        <input class="gang-create-input" id="gang-name" placeholder="${WB.t("Family name…")}" maxlength="24" autocomplete="off">
+        <button class="gang-btn claim" data-act="gangcreate" style="margin-top:8px">🕴️ ${WB.t("Form the family")}</button>
+      </div>`;
+    }
+    const d = gang.data, members = d.members || {}, uids = Object.keys(members), me = WB.CLOUD.uid;
+    const isBoss = d.boss === me;
+    const memberHtml = uids.map(u => {
+      const m = members[u], ini = (m.name || "?").trim().charAt(0).toUpperCase();
+      const role = m.boss ? "BOSS" : (m.role || "Soldier");
+      const cutTxt = m.boss ? "" : (m.cut > 0 ? `${m.cut}%` : WB.t("even"));
+      return `<div class="gang-member">
+        <span class="gang-avatar">${esc(ini)}</span>
+        <span class="gang-mname">${esc(m.name)}${u === me ? ` <span class="muted">(${WB.t("you")})</span>` : ""}<span class="gang-role">${esc(WB.t(role))}${cutTxt ? ` · ${cutTxt}` : ""}</span></span>
+        ${m.boss ? `<span class="gang-boss-tag">BOSS</span>` : (isBoss ? `<button class="gang-edit" data-act="gangedit" data-key="${esc(u)}" data-name="${esc(m.name)}" title="Set role &amp; cut">✎</button>` : "")}
+      </div>`;
+    }).join("");
+    const bossControls = isBoss ? `<div class="gang-rename"><input class="gang-create-input" id="gang-rename-in" maxlength="24" placeholder="${WB.t("Rename the family…")}" value="${esc(d.name || "")}"><button class="gang-btn" data-act="gangrename">${WB.t("Rename")}</button></div>` : "";
+    const inSet = new Set(uids), seen = new Set(), cands = [];
+    (social.friends || []).filter(f => f.online).forEach(f => cands.push({ uid: f.uid, name: f.name }));
+    (gang.online || []).forEach(p => cands.push({ uid: p.uid, name: p.name }));
+    const invites = cands.filter(c => c.uid && !inSet.has(c.uid) && !seen.has(c.uid) && (seen.add(c.uid), true)).slice(0, 8);
+    const inviteHtml = invites.length ? invites.map(c => {
+      const ini = (c.name || "?").trim().charAt(0).toUpperCase();
+      return `<div class="gang-invite-row"><span class="gang-avatar">${esc(ini)}</span><span class="gang-invite-name">${esc(c.name)}</span><button class="gang-invite-btn" data-act="ganginvite" data-key="${esc(c.uid)}" data-name="${esc(c.name)}">＋ ${WB.t("Invite")}</button></div>`;
+    }).join("") : `<div class="gang-empty">${WB.t("No one online to recruit right now.")}</div>`;
+    return `
+      <div class="gang-hero">
+        <div class="gang-hero-ico">🕴️</div>
+        <div class="gang-hero-main"><div class="gang-name">${esc(d.name || "The Family")}</div><div class="gang-hero-sub">${uids.length} ${WB.t("made members · a 25% cut of every mafia job feeds the pot")}</div></div>
+      </div>
+      <div class="gang-pot-box"><div class="gang-pot">${WB.fmt(d.pot || 0, true)}</div><div class="gang-pot-label">${WB.t("Syndicate pot")}</div></div>
+      <div class="gang-section">${WB.t("The Family")}</div>
+      <div class="gang-members">${memberHtml}</div>
+      ${bossControls}
+      <div class="gang-section">${WB.t("Recruit")}</div>
+      <div class="gang-invite">${inviteHtml}</div>
+      <div class="gang-foot">
+        ${isBoss ? `<button class="gang-btn claim" data-act="gangclaim" ${(d.pot || 0) > 0 ? "" : "disabled"}>💰 ${WB.t("Split the pot")}</button>` : ""}
+        <button class="gang-btn leave" data-act="gangleave">${isBoss ? WB.t("Disband") : WB.t("Leave")}</button>
+      </div>`;
+  }
+  // incoming gang invite popup (reuses the invite-pop styling)
+  function showGangInvitePopup(g) {
+    if (gang.id === g.gangId) return;
+    const pop = document.createElement("div");
+    pop.className = "invite-pop";
+    pop.innerHTML = `
+      <div class="invite-card">
+        <div class="invite-glow"></div>
+        <div class="invite-ico">🕴️</div>
+        <div class="invite-from"><b>${esc(g.fromName || "A boss")}</b> ${WB.t("wants you in")}</div>
+        <div class="invite-job">${esc(g.gangName || "the family")}</div>
+        <div class="invite-sub">${WB.t("Join the syndicate — earn together from every mafia job.")}</div>
+        <div class="invite-actions">
+          <button class="btn subtle invite-decline" id="ginv-no">${WB.t("Decline")}</button>
+          <button class="btn primary invite-join" id="ginv-yes">🤝 ${WB.t("Join the family")}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    if (WB.SOUND) WB.SOUND.play("open");
+    const close = () => { if (pop.parentNode) pop.remove(); };
+    pop.querySelector("#ginv-no").onclick = close;
+    pop.querySelector("#ginv-yes").onclick = () => { close(); joinGangFlow(g.gangId); };
   }
 
   // ---------- Empire tab (secret endgame) ----------
@@ -2217,7 +2409,27 @@ WB.UI = (function () {
     if (!btn) return;
     const G = WB.GAME;
     const act = btn.dataset.act, key = btn.dataset.key;
-    if (act === "crime") { const r = WB.CRIME.commit(key); if (r && r.refused) toast("🚫 " + r.refused, "bad"); else if (r) openResult({ ...r, money: r.money }); }
+    if (act === "crime") {
+      const r = WB.CRIME.commit(key);
+      if (r && r.refused) { toast("🚫 " + r.refused, "bad"); }
+      else if (r) {
+        const cr = WB.CRIME.CRIMES.find(x => x.id === key);
+        // mafia job → a 25% cut feeds the shared syndicate pot
+        if (r.win && cr && cr.mafia && gang.id && WB.CLOUD && WB.CLOUD.enabled && r.money > 0) {
+          const cut = Math.floor(r.money * 0.25);
+          if (WB.CLOUD.contributeToGang) WB.CLOUD.contributeToGang(gang.id, cut);
+          r.lines = (r.lines || []).concat(`🕴️ ${WB.fmt(cut, true)} into the syndicate pot.`);
+        }
+        if (WB.SOUND) WB.SOUND.play(r.win ? (cr && cr.launder ? "open" : "cash") : "error");
+        openResult({ ...r, money: r.money });
+      }
+    }
+    else if (act === "gangcreate") { const n = ($("gang-name") && $("gang-name").value || "").trim(); if (!n) { toast(WB.t("Name your family first."), "bad"); return; } createGangFlow(n); return; }
+    else if (act === "gangclaim") { claimGangPotFlow(); return; }
+    else if (act === "gangleave") { leaveGangFlow(); return; }
+    else if (act === "ganginvite") { if (WB.CLOUD && WB.CLOUD.sendGangInvite && gang.id) { WB.CLOUD.sendGangInvite(key, gang.id, (gang.data && gang.data.name) || "the family", playerName()); toast(`📨 ${WB.t("Invited")} ${esc(btn.dataset.name || "")}`, "good"); } return; }
+    else if (act === "gangrename") { const n = ($("gang-rename-in") && $("gang-rename-in").value || "").trim(); if (n && gang.id && WB.CLOUD.renameGang) { WB.CLOUD.renameGang(gang.id, n); toast("🕴️ " + WB.t("The family has a new name."), "good"); } return; }
+    else if (act === "gangedit") { openGangMemberDialog(key, btn.dataset.name); return; }
     else if (act === "venture") {
       const r = WB.EMPIRE.buyNext(key);
       if (r.refused) toast("🚫 " + r.refused, "bad");
@@ -2360,15 +2572,16 @@ WB.UI = (function () {
     setBar("stress", r.stress, Math.round(r.stress));
     $("rep-val").textContent = Math.floor(r.reputation);
     $("followers-val").textContent = WB.fmt(st.stats.followers);
-    // career you're currently pursuing (from the focused activity)
-    const cChip = $("career-val");
-    if (cChip) {
+    // The skill you're currently training (from the focused activity) + its level,
+    // e.g. "🧠 Coding Lv 36" or "💼 Business Lv 10".
+    const chip = $("career-chip");
+    if (chip) {
       const a = D.ACTIVITIES[st.focus];
-      const ck = a && a.career;
-      if (ck && st.careers[ck] >= 0) {
-        const c = D.CAREERS[ck], t = st.careers[ck];
-        cChip.textContent = `${WB.t(c.tiers[t].name)} (${WB.t("Lv")} ${t + 1})`;
-      } else cChip.textContent = WB.t("Freelancing");
+      const sk = a && a.skill;
+      if (sk && st.skills[sk]) {
+        const s = D.SKILLS[sk];
+        chip.innerHTML = `${s.icon} <b id="career-val">${WB.t(s.name)} ${WB.t("Lv")} ${st.skills[sk].level}</b>`;
+      } else chip.innerHTML = `🧘 <b id="career-val">${WB.t("Taking it easy")}</b>`;
     }
 
     // living character panel: status, mood, level, prison state
@@ -2684,7 +2897,7 @@ WB.UI = (function () {
     // Activities click handler (the bar itself is built after state loads, below)
     $("activities").addEventListener("click", e => {
       const b = e.target.closest(".act-btn");
-      if (b && !b.classList.contains("locked")) { WB.GAME.setFocus(b.dataset.focus); renderHud(); }
+      if (b && !b.classList.contains("locked")) { if (WB.SOUND) WB.SOUND.play("click"); WB.GAME.setFocus(b.dataset.focus); renderHud(); }
     });
 
     // Tabs (rebuilt dynamically — the Empire tab appears when the secret unlocks)
@@ -2721,6 +2934,7 @@ WB.UI = (function () {
         }
       }
       const r = WB.GAME.hustle();
+      if (WB.SOUND) WB.SOUND.play(r.crit ? "crit" : "click");
       const rect = $("scene").getBoundingClientRect();
       floatMoney(r.value, e.clientX - rect.left + WB.rand(-12, 12), e.clientY - rect.top - 14, r.crit);
       const btn = $("hustle-btn");
@@ -2797,6 +3011,7 @@ WB.UI = (function () {
     setInterval(cloudSync, 60000);
     setInterval(watchJailForCloud, 1500); // push score the instant you're jailed / bailed
     startSocial(); // friend-request + gift listeners (run all session)
+    if (WB.CLOUD && WB.CLOUD.enabled) loadGang(); else window.addEventListener("wb-cloud-ready", loadGang);
     setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
     setInterval(maybeSocialPrize, 75000); // "follow us for a prize" — fires once
     // listen for admin broadcasts (global events) — apply to this player live

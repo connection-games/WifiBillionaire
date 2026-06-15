@@ -625,7 +625,55 @@ WB.ROOM = (function () {
   }
 
   // ---------- Prison cell (the whole room changes) ----------
-  function drawPrison(s) {
+  // ----- jail tally marks: one group per arrest. shared by every prison scene
+  function prisonTally(tx0, ty) {
+    const groups = Math.min(6, 1 + ((WB.CRIME && WB.CRIME.crimeState().timesCaught) || 1));
+    for (let g = 0; g < groups; g++) {
+      const tx = tx0 + g * 14;
+      for (let i = 0; i < 4; i++) px(tx + i * 3, ty, 1, 8, "#c8cad0");
+      px(tx - 1, ty + 2, 12, 1, "#c8cad0");
+    }
+    return groups;
+  }
+
+  // ----- a barred window onto the night sky. starsOnly=true skips the moon so a
+  // train can pass behind it. returns the window rect for callers to draw into.
+  function barredWindow(wx, wy, vw, vh, starsOnly) {
+    px(wx - 3, wy - 3, vw + 6, vh + 6, "#26282c");
+    px(wx, wy, vw, vh, "#141c33");
+    if (!starsOnly) { px(wx + 24, wy + 5, 6, 6, "#f2ecc9"); px(wx + 26, wy + 6, 2, 2, "#141c33"); } // moon
+    for (let i = 0; i < 8; i++) px(wx + 2 + ((i * 9) % (vw - 4)), wy + 3 + ((i * 5) % (vh - 6)), 1, 1, "#cdd8f5");
+    return { x: wx, y: wy, w: vw, h: vh };
+  }
+  function windowBars(wx, wy, vw, vh) {
+    for (let i = 0; i < 3; i++) px(wx + 6 + i * 11, wy, 3, vh, "#26282c");
+  }
+
+  // ----- a freight train: engine + boxcars sliding right→left at offset ox.
+  // clipped to fit whatever framed opening (window or fence gap) is passing it.
+  function freightTrain(ox, baseY, scale) {
+    const ch = Math.round(13 * scale), cw = Math.round(22 * scale), gap = Math.round(3 * scale);
+    const cars = ["#7a3b34", "#3f5a72", "#6b6f3a", "#5a4a6e", "#7a3b34", "#3f5a72"];
+    // locomotive (leading car, darker, with a cab)
+    px(ox, baseY - ch - 4, cw, ch + 4, "#2b2f38");
+    px(ox + cw - Math.round(6 * scale), baseY - ch - 8, Math.round(6 * scale), 4, "#23262e"); // smokestack
+    cars.forEach((c, i) => {
+      const x = ox + cw + gap + i * (cw + gap);
+      px(x, baseY - ch, cw, ch, c);
+      px(x, baseY - ch, cw, Math.max(1, Math.round(2 * scale)), shade(c));      // roof shade
+      px(x + Math.round(4 * scale), baseY - Math.round(ch / 2), Math.round(cw - 8 * scale), 1, shade(c)); // side seam
+    });
+    // wheels + rail, rolling
+    const total = cw + gap + cars.length * (cw + gap);
+    for (let wx2 = ox + 2; wx2 < ox + total; wx2 += Math.round(8 * scale)) {
+      if ((frame + wx2) % 2 === 0) px(wx2, baseY, Math.max(1, Math.round(2 * scale)), Math.max(1, Math.round(2 * scale)), "#15171c");
+    }
+    px(ox - 4, baseY + Math.round(2 * scale), total + 8, 1, "#1b1d22"); // rail
+    return total;
+  }
+
+  // ====== PRISON SCENE 1: the cell — slumped on the bunk under the window ======
+  function prisonCell() {
     // stone walls + concrete floor
     px(0, 0, W, FLOOR_Y, "#4b4e55");
     px(0, 0, W, 12, "#3f424a");
@@ -639,12 +687,8 @@ WB.ROOM = (function () {
 
     // tiny barred window, night sky
     const wx = 48, wy = 24, vw = 36, vh = 26;
-    px(wx - 3, wy - 3, vw + 6, vh + 6, "#26282c");
-    px(wx, wy, vw, vh, "#141c33");
-    px(wx + 24, wy + 5, 6, 6, "#f2ecc9"); // moon
-    px(wx + 26, wy + 6, 2, 2, "#141c33");
-    for (let i = 0; i < 8; i++) px(wx + 2 + ((i * 9) % (vw - 4)), wy + 3 + ((i * 5) % (vh - 6)), 1, 1, "#cdd8f5");
-    for (let i = 0; i < 3; i++) px(wx + 6 + i * 11, wy, 3, vh, "#26282c"); // window bars
+    const win = barredWindow(wx, wy, vw, vh, false);
+    windowBars(win.x, win.y, win.w, win.h);
 
     // swinging bulb
     const sway = Math.sin(frame / 10) * 3;
@@ -659,15 +703,9 @@ WB.ROOM = (function () {
       ctx.fill();
     }
 
-    // tally marks: one group per arrest
-    const groups = Math.min(6, 1 + ((WB.CRIME && WB.CRIME.crimeState().timesCaught) || 1));
-    for (let g = 0; g < groups; g++) {
-      const tx = 130 + g * 14, ty = 38;
-      for (let i = 0; i < 4; i++) px(tx + i * 3, ty, 1, 8, "#c8cad0");
-      px(tx - 1, ty + 2, 12, 1, "#c8cad0");
-    }
+    prisonTally(130, 38);
 
-    // bunk + prisoner
+    // bunk + prisoner, slumped, slow breathing + sleepy Zzz
     const bx = 232, by = FLOOR_Y + 14;
     px(bx, by - 26, 4, 40, "#5a5d64"); px(bx + 62, by - 26, 4, 40, "#5a5d64"); // posts
     px(bx + 2, by - 22, 62, 4, "#6a6d74");                                     // top bunk
@@ -682,26 +720,172 @@ WB.ROOM = (function () {
     px(sx2 - 5, by - 3, 4, 5, "#d97f28"); px(sx2 + 2, by - 3, 4, 5, "#d97f28"); // legs dangling
     px(sx2 - 5, by + 2 + (Math.floor(frame / 5) % 2), 4, 2, "#222");           // feet swing
     px(sx2 + 2, by + 2 + ((Math.floor(frame / 5) + 1) % 2), 4, 2, "#222");
-    const sigh = frame % 90;
-    if (sigh < 14) px(sx2 + 9, by - 16 - sigh / 3, 2, 2, `rgba(255,255,255,${0.5 - sigh / 30})`); // sigh
+    // slow, drifting "Zzz" — a sleepy Z floats up every couple seconds
+    const zc = frame % 30;
+    if (zc < 24) {
+      const zy = by - 24 - zc, za = 0.7 - zc / 34;
+      ctx.fillStyle = `rgba(220,228,255,${Math.max(0, za)})`;
+      ctx.font = "bold 8px 'Courier New', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("z", sx2 + 8, zy);
+    }
 
-    // toilet, regrettably
+    prisonToiletAndDoor();
+    prisonRat();
+  }
+
+  // shared furniture: toilet + heavy barred cell door + keyhole
+  function prisonToiletAndDoor() {
     px(150, FLOOR_Y + 20, 14, 4, "#c8cad0");
     px(153, FLOOR_Y + 24, 8, 8, "#aab0b8");
     px(150, FLOOR_Y + 12, 4, 9, "#c8cad0");
 
-    // cell door: heavy bars on the left wall
     px(2, 18, 34, FLOOR_Y + 24, "rgba(20,21,24,0.25)");
     for (let i = 0; i < 5; i++) px(4 + i * 7, 14, 3, FLOOR_Y + 28, "#22242a");
     px(2, 50, 34, 3, "#22242a"); px(2, 96, 34, 3, "#22242a"); // crossbars
     px(26, 70, 7, 9, "#3a3d44"); px(28, 73, 3, 3, "#ffd60a"); // lock plate + keyhole
-
-    // a rat. for ambiance.
+  }
+  function prisonRat() {
     const rt = (frame * 1.1) % 360;
     const rx2 = rt < 180 ? 60 + rt : 240 - (rt - 180);
     px(rx2, FLOOR_Y + 38, 8, 4, "#7a7d85");
     px(rx2 + (rt < 180 ? 7 : -2), FLOOR_Y + 37, 3, 3, "#7a7d85");
     px(rx2 + (rt < 180 ? -3 : 9), FLOOR_Y + 39, 3, 1, "#5d6068"); // tail
+  }
+
+  // a side-on inmate in orange, mid-stride. dir=+1 faces right, -1 faces left.
+  function inmateWalker(x, y, dir, step) {
+    px(x - 3, y - 16, 8, 4, HAIR);                                  // hair
+    px(x - 2, y - 12, 6, 5, SKIN);                                  // head
+    px(x + (dir > 0 ? 3 : -2), y - 11, 1, 1, "#15171c");            // eye, looking ahead
+    px(x - 3, y - 7, 8, 9, "#d97f28");                              // jumpsuit torso
+    px(x - 3, y - 7, 8, 2, "#b8641c");
+    px(x - 3, y - 4, 8, 1, "#b8641c");                              // chest stripe
+    px(x - 3 + (step ? 3 : 0), y + 2, 3, 4, "#c46f1f");             // legs swinging
+    px(x + 1 - (step ? 3 : 0), y + 2, 3, 4, "#c46f1f");
+    px(x - 3 + (step ? 3 : 0), y + 6, 3, 1, "#222");
+    px(x + 1 - (step ? 3 : 0), y + 6, 3, 1, "#222");
+  }
+
+  // ====== PRISON SCENE 2: the yard — pacing inside a chain-link cage ======
+  function prisonYard() {
+    // overcast dawn sky + distant wall
+    px(0, 0, W, FLOOR_Y, "#6f7682");
+    px(0, 0, W, 30, "#7d8694");
+    px(0, FLOOR_Y - 24, W, 24, "#5e6470");                          // perimeter wall
+    for (let i = 0; i < 11; i++) px(i * 30, FLOOR_Y - 24, 2, 24, "#525862"); // wall seams
+    // packed-dirt yard
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#6b5d4a");
+    for (let i = 0; i < 6; i++) px((i * 53 + (frame % 7)) % W, FLOOR_Y + 12 + (i % 3) * 9, 3, 2, "#5a4d3c");
+
+    // guard tower silhouette, back-left, with a slow sweeping spotlight
+    const tx = 30;
+    px(tx, FLOOR_Y - 70, 4, 70, "#3a3f48"); px(tx + 18, FLOOR_Y - 70, 4, 70, "#3a3f48"); // legs
+    px(tx - 4, FLOOR_Y - 86, 30, 18, "#2f343c");                    // cabin
+    px(tx - 2, FLOOR_Y - 84, 26, 8, "#1a3050");                     // window band
+    px(tx - 6, FLOOR_Y - 90, 34, 4, "#262a31");                     // roof
+    const sweep = Math.sin(frame / 18);
+    px(tx + 9, FLOOR_Y - 80, 3, 3, "#fff3c4");                      // searchlight lens
+    ctx.fillStyle = "rgba(255,243,196,0.06)";
+    ctx.beginPath();
+    ctx.moveTo(tx + 10, FLOOR_Y - 78);
+    ctx.lineTo(tx + 10 + 120 + sweep * 60, FLOOR_Y - 10);
+    ctx.lineTo(tx + 10 + 60 + sweep * 60, FLOOR_Y + 30);
+    ctx.closePath();
+    ctx.fill();
+
+    // chain-link fence across the front, with barbed wire on top
+    const fy = 30, fb = FLOOR_Y - 2;
+    px(8, fy - 4, W - 16, 3, "#3a3f48");                            // top rail
+    for (let x = 10; x < W - 10; x += 7)
+      for (let y = fy; y < fb; y += 7) {
+        px(x, y, 1, 6, "#9aa0aa"); // diagonal links (suggested)
+        px(x + 3, y + 3, 1, 3, "#8a909a");
+      }
+    for (let i = 0; i < 9; i++) px(16 + i * 34, fy - 2, 3, fb - fy, "#454a53"); // posts
+    // barbed wire coils along the top
+    for (let i = 0; i < W; i += 12) {
+      px(i, fy - 9, 8, 1, "#cfd4dc");
+      px(i + 3, fy - 12, 1, 4, "#cfd4dc"); px(i + 2, fy - 10, 3, 1, "#cfd4dc"); px(i + 1, fy - 8, 5, 1, "#bfc4cc");
+    }
+
+    prisonTally(126, 12);
+
+    // the inmate, pacing back and forth across the yard
+    const period = 96, t = frame % period, half = period / 2;
+    const ph = t < half ? t / half : 1 - (t - half) / half; // 0..1..0
+    const px2 = 70 + ph * 150;
+    const dir = t < half ? 1 : -1;
+    const step = Math.floor(frame / 2) % 2;
+    px(px2 - 8, FLOOR_Y + 12, 18, 3, "rgba(0,0,0,0.22)");          // shadow
+    inmateWalker(px2, FLOOR_Y + 2, dir, step);
+
+    // a basketball hoop, because someone tried to make this nice
+    px(252, FLOOR_Y - 52, 2, 52, "#3a3f48"); px(246, FLOOR_Y - 54, 16, 9, "#d8d2c2"); // pole + backboard
+    px(250, FLOOR_Y - 47, 8, 1, "#e2683a"); px(250, FLOOR_Y - 46, 1, 4, "#cfd4dc"); px(257, FLOOR_Y - 46, 1, 4, "#cfd4dc"); // rim + net
+  }
+
+  // ====== PRISON SCENE 3: a freight train rolls past the window ======
+  function prisonTrain() {
+    // same cell, but eyes fixed on the window where freedom rolls by
+    px(0, 0, W, FLOOR_Y, "#4b4e55");
+    px(0, 0, W, 12, "#3f424a");
+    px(0, FLOOR_Y - 6, W, 6, "#3f424a");
+    for (let row = 0; row < 9; row++)
+      for (let col = -1; col < 11; col++)
+        px(col * 32 + (row % 2 ? 16 : 0), 12 + row * 12, 30, 10, row % 2 ? "#50535b" : "#4d5058");
+    px(0, FLOOR_Y, W, H - FLOOR_Y, "#393b40");
+    for (let i = 0; i < 7; i++) px(0, FLOOR_Y + 6 + i * 8, W, 1, "#2f3135");
+    px(0, FLOOR_Y, W, 2, "#26282c");
+
+    // a wider window for this scene so the train reads. starry sky, no moon.
+    const wx = 40, wy = 22, vw = 96, vh = 34;
+    const win = barredWindow(wx, wy, vw, vh, true);
+    // clip the train to the window opening so boxcars vanish at the frame edges
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(win.x, win.y, win.w, win.h);
+    ctx.clip();
+    // the train slides right→left, looping across the opening
+    const span = 320;
+    const ox = win.x + win.w + 20 - ((frame * 9) % span);
+    freightTrain(ox, win.y + win.h - 3, 1);
+    ctx.restore();
+    windowBars(win.x, win.y, win.w, win.h);
+
+    prisonTally(160, 14);
+
+    // swinging bulb (kept, so the scene matches the cell)
+    const sway = Math.sin(frame / 10) * 3;
+    const lx = 210 + sway;
+    px(210, 0, 1, 16, "#26282c");
+    px(lx - 3, 16, 7, 6, frame % 60 < 55 ? "#fff3c4" : "#6a6455");
+
+    // the inmate standing at the window, gripping the bars, watching it go
+    const ix = wx + vw / 2, iy = FLOOR_Y + 2;
+    px(ix - 4, iy - 18, 9, 4, HAIR);                                // hair, seen from behind
+    px(ix - 3, iy - 14, 7, 5, SKIN);
+    px(ix - 4, iy - 9, 9, 11, "#d97f28");                          // jumpsuit, back view
+    px(ix - 4, iy - 9, 9, 2, "#b8641c");
+    px(ix - 7, iy - 8, 3, 7, SKIN); px(ix + 5, iy - 8, 3, 7, SKIN); // arms reaching up to the bars
+    px(ix - 4, iy + 2, 3, 5, "#c46f1f"); px(ix + 2, iy + 2, 3, 5, "#c46f1f"); // legs
+    px(ix - 4, iy + 7, 3, 1, "#222"); px(ix + 2, iy + 7, 3, 1, "#222");
+    // a wistful sigh
+    const sigh = frame % 90;
+    if (sigh < 14) px(ix + 6, iy - 16 - sigh / 3, 2, 2, `rgba(255,255,255,${0.5 - sigh / 30})`);
+
+    prisonToiletAndDoor();
+    prisonRat();
+  }
+
+  // rotate through ambient prison activities so jail feels alive. each scene
+  // runs ~80 frames (~6.5s at 12fps) before cycling to the next.
+  function drawPrison(s) {
+    const SCENE = 80;
+    const scene = Math.floor(frame / SCENE) % 3;
+    if (scene === 0) prisonCell();
+    else if (scene === 1) prisonYard();
+    else prisonTrain();
   }
 
   function shade(hex) {

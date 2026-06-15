@@ -594,6 +594,32 @@ WB.EVENTS = (function () {
           effect: s => ({ cryptoPct: -0.10, investPct: -0.06, stress: -4, intelligence: 2 }) },
       ],
     },
+
+    // ---------- v7.0.2: PRISON choice events (only fire while jailed) ----------
+    {
+      id: "prison_yarddeal", title: "A Guy Offers You a Deal in the Yard", prison: true, icon: "🤝",
+      text: "A heavily-tattooed man named 'Spreadsheet' corners you by the weights. He can get you extra commissary and 'protection' — for a favor you really don't want to do.",
+      choices: [
+        { label: "Take the deal", result: "You did the favor. Don't ask. The ramen and the safety are very real now, and so is the debt.", luckCheck: 0.55,
+          effect: s => ({ happiness: 6, stress: -8, heat: -8 }),
+          failResult: "The favor went sideways and the guards noticed. Now you've got a write-up AND a reputation.",
+          failEffect: s => ({ stress: 18, happiness: -10, heat: 10 }) },
+        { label: "Politely decline", result: "You said no and kept your hands clean. Spreadsheet respects the boundary. The yard is colder now, but yours.",
+          effect: s => ({ intelligence: 1, stress: 6, reputation: 2 }) },
+      ],
+    },
+    {
+      id: "prison_riot", title: "Riot in C-Block", prison: true, icon: "🔥",
+      text: "Trays are flying. Alarms are screaming. C-Block has decided today is the day. You have about four seconds to pick a personality.",
+      choices: [
+        { label: "Help calm it down", result: "You talked three guys off the ledge and the guards clocked it. The warden 'owes you one' — terrifying, but useful.", luckCheck: 0.5,
+          effect: s => ({ reputation: 8, intelligence: 1, heat: -12, stress: 8 }),
+          failResult: "Turns out 'calming it down' looks identical to 'starting it' on the cameras. Solitary it is.",
+          failEffect: s => ({ stress: 25, happiness: -12, energy: -15 }) },
+        { label: "Hide under your bunk", result: "Cowardly? Maybe. Uninjured? Completely. You waited it out reading the same cereal box six times.",
+          effect: s => ({ stress: 6, happiness: -3, intelligence: 1 }) },
+      ],
+    },
   ];
 
   // ---------- Minor events (auto-resolve, toast + thought) ----------
@@ -729,16 +755,41 @@ WB.EVENTS = (function () {
       effect: s => ({ heat: -10, energy: -6 }), bubble: "I watch one heist movie and suddenly I have tradecraft." },
     { w: 0.7, cond: s => s.crime && s.crime.timesCaught > 0, text: "An old cellmate sends a postcard: 'thinking of you. lay low.' Surprisingly touching.",
       effect: s => ({ heat: -5, happiness: 3 }), bubble: "Greg from the inside still has my back. Loyalty is rare." },
+
+    // ---- v7.0.2: PRISON flavor toasts (only fire while jailed) ----
+    { w: 1.4, prison: true, text: "Commissary day. You trade two stamps for a brick of ramen and eat like a king. A sodium-poisoned king.",
+      effect: s => ({ happiness: 6, energy: 5, stress: -4 }), bubble: "Ramen with crushed chips on top. They call it 'the spread'. I call it fine dining." },
+    { w: 1.3, prison: true, text: "Yard workout. You can't afford a gym on the outside but in here the iron is free and so is the time.",
+      effect: s => ({ energy: -8, happiness: 5, stress: -10 }), bubble: "Prison is the only place I've ever actually used my gym membership." },
+    { w: 1.3, prison: true, text: "Your cellmate tells you, in great detail, about the time he 'almost' got away with $4 million in bearer bonds.",
+      effect: s => ({ intelligence: 1, happiness: 3, stress: -3 }), bubble: "If even half of that is true, this man is a folk hero. It is not half true." },
+    { w: 1, prison: true, text: "A contraband phone makes the rounds. You get four minutes of unfiltered, gloriously illegal internet.",
+      effect: s => ({ happiness: 7, stress: -5, heat: 5 }), bubble: "I missed you, internet. Even the ads. ESPECIALLY the ads." },
+    { w: 1.2, prison: true, text: "Push-ups in the cell at 3 AM because the bunk is too short and sleep is for the free.",
+      effect: s => ({ energy: -5, stress: -6, intelligence: 1 }), bubble: "I have done more push-ups this week than in my entire startup career." },
+    { w: 0.9, prison: true, text: "A shank rumor spreads down the tier. You keep your back to the wall and your opinions to yourself.",
+      effect: s => ({ stress: 8, happiness: -4, heat: -3 }), bubble: "Eyes forward. Trust no one. Compliment the meatloaf." },
+    { w: 1.1, prison: true, text: "Mail call. Someone on the outside actually wrote to you. The envelope smells like home and bad decisions.",
+      effect: s => ({ happiness: 9, motivation: 6, stress: -5 }), bubble: "A letter! With a stamp! Someone out there remembers I exist." },
+    { w: 1.1, prison: true, text: "Lights out. The block goes quiet except for snoring and the distant clang of doors you can't open.",
+      effect: s => ({ energy: 10, stress: -4, happiness: -3 }), bubble: "Another day closer to freedom. I'm counting them on the wall like a cartoon." },
+    { w: 0.9, prison: true, text: "You sign up for the prison library and read more books in a week than in the last five years combined.",
+      effect: s => ({ intelligence: 2, motivation: 5, stress: -4 }), bubble: "Turns out 'no WiFi' is an aggressive but effective focus mode." },
+    { w: 0.8, prison: true, text: "A guard does a surprise cell toss and finds your stash of extra ramen. Tragic. Confiscated.",
+      effect: s => ({ happiness: -6, stress: 6, heat: -4 }), bubble: "They took the ramen. There are no good men left in this institution." },
   ];
 
   // ---------- Scheduling / resolution ----------
   function pickEvent(s) {
+    // when jailed, ONLY prison events fire; when free, prison events never fire
+    const jailed = s.crime && s.crime.prisonUntil > Date.now();
+    const prisonOk = e => jailed ? !!e.prison : !e.prison;
     // chance of a major (choice) event when one is eligible — the rest are minor toasts
-    const majors = MAJOR.filter(e => (!e.cond || e.cond(s)) && !WB.GAME.onCooldown(e.id));
+    const majors = MAJOR.filter(e => prisonOk(e) && (!e.cond || e.cond(s)) && !WB.GAME.onCooldown(e.id));
     if (majors.length && WB.chance(0.5)) {
       return { kind: "major", ev: WB.pick(majors) };
     }
-    const minors = MINOR.filter(e => !e.cond || e.cond(s));
+    const minors = MINOR.filter(e => prisonOk(e) && (!e.cond || e.cond(s)));
     if (!minors.length) return null;
     let total = 0;
     minors.forEach(e => total += e.w);

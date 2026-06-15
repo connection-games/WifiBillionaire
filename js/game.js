@@ -799,7 +799,7 @@ WB.GAME = (function () {
     WB.ACTIONS.tick();
 
     // Events
-    if (now >= s.nextEventAt && !UI.modalOpen() && !inPrison()) { // no normal events while jailed
+    if (now >= s.nextEventAt && !UI.modalOpen()) { // pickEvent swaps to prison-only events while jailed
       fireEvent();
       s.nextEventAt = now + (32 + Math.random() * 46) * 1000 / (speedMult() > 1 ? 2 : 1);
     }

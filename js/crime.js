@@ -17,6 +17,7 @@ WB.CRIME = (function () {
     { id: "fraud",      name: "Fraud",      icon: "🎩" },
     { id: "smuggling",  name: "Smuggling",  icon: "📦" },
     { id: "robberies",  name: "Robberies",  icon: "🔫" },
+    { id: "mafia",      name: "Mafia",      icon: "🕴️" },
   ];
 
   // payout = `minutes of income` * range, so crime scales with your operation, not flat.
@@ -207,6 +208,38 @@ WB.CRIME = (function () {
       flavorWin: ["20,000 rubber ducks, one very profitable false bottom.", "The manifest said 'novelty toys'. It was not lying. Mostly."],
       flavorLoss: ["This time, they checked the ducks. Always check the ducks.", "A port scanner lit up like a Christmas tree. Yours."] },
 
+    // ---------------- 🕴️ MAFIA — syndicate rackets (a cut feeds the gang pot) ----------------
+    { id: "protection", name: "Protection Racket", icon: "💼", cat: "mafia", mafia: true,
+      desc: "'Nice {appNoun} shop. Be a shame if something happened to it.' Collect weekly.",
+      mins: [8, 18], risk: 0.20, sentence: 300, heat: 12, reqLevel: 12,
+      flavorWin: ["Every shop on the block pays up. The neighborhood is very… safe now.", "An offer they couldn't refuse. Envelopes, every Friday."],
+      flavorLoss: ["One shopkeeper wore a wire. The whole block was watching.", "Turns out the new butcher is an undercover fed. Of course he is."] },
+    { id: "loanshark", name: "Loan Sharking", icon: "🦈", cat: "mafia", mafia: true,
+      desc: "Lend at 'friendly' rates. The vig is where the real money lives.",
+      mins: [10, 22], risk: 0.22, sentence: 340, heat: 14, reqLevel: 14,
+      flavorWin: ["The vig compounds beautifully. Knees remain a powerful collateral.", "Nobody reads the terms. The terms are: you pay, or else."],
+      flavorLoss: ["A 'client' brought a detective to the payment meeting.", "Someone finally did the math and called the DA instead of paying."] },
+    { id: "union", name: "Union Shakedown", icon: "🏗️", cat: "mafia", mafia: true,
+      desc: "Control the docks and the cranes don't move without your say-so.",
+      mins: [12, 26], risk: 0.24, sentence: 400, heat: 16, reqLevel: 15,
+      flavorWin: ["No-show jobs, kickbacks, and a very cooperative foreman. Classic.", "The whole port runs on your nod. And your cut."],
+      flavorLoss: ["A labor board audit found 200 employees who don't exist.", "The new shop steward is wired and ambitious. Bad combo."] },
+    { id: "racket", name: "Racketeering", icon: "🎰", cat: "mafia", mafia: true,
+      desc: "Numbers, fixed games, and 'consulting fees' across the whole district.",
+      mins: [14, 30], risk: 0.26, sentence: 460, heat: 18, reqLevel: 16,
+      flavorWin: ["A dozen rackets, one organization, zero receipts. Poetry.", "The books are immaculate. The real books are buried in Jersey."],
+      flavorLoss: ["RICO. They got you on RICO. The acronym every boss dreads.", "A capo flipped for witness protection. Snakes, everywhere."] },
+    { id: "skim", name: "Casino Skim", icon: "🎲", cat: "mafia", mafia: true,
+      desc: "Take a slice off the count room before it's ever counted.",
+      mins: [16, 34], risk: 0.28, sentence: 520, heat: 20, reqLevel: 18,
+      flavorWin: ["A little off the top of every table. The desert keeps its secrets.", "The count room camera had a very convenient blind spot."],
+      flavorLoss: ["The Gaming Commission counted twice. The numbers didn't agree.", "A courier got greedy and got caught — with your ledger."] },
+    { id: "turf", name: "Turf War", icon: "⚔️", cat: "mafia", mafia: true,
+      desc: "Push into a rival crew's territory and take the whole operation.",
+      mins: [18, 38], risk: 0.30, sentence: 600, heat: 24, reqLevel: 20,
+      flavorWin: ["Their territory is your territory now. Hostile takeover, mob edition.", "You expanded the family business. Aggressively. Profitably."],
+      flavorLoss: ["The rival crew had friends downtown. With badges.", "A 'sit-down' turned into a setup. You walked into it."] },
+
     // ---------------- 🧼 Utility (shown in every category) ----------------
     { id: "launder", name: "Launder Heat", icon: "🧼", launder: true, cat: "fraud",
       desc: "Run dirty money through a 'car wash empire' to cool things down.",
@@ -242,6 +275,7 @@ WB.CRIME = (function () {
     // The heist-bust movie already drove us to jail, so it passes skipCutscene
     // to avoid playing the generic door-knock "arrest" scene on top of it.
     if (!skipCutscene && WB.ROOM && WB.ROOM.play) WB.ROOM.play("arrest"); // sirens, cuffs, the ride downtown
+    if (WB.SOUND) WB.SOUND.play("siren");
     WB.UI.toast(`🚔 BUSTED: ${reason} — ${WB.fmtTime(sec)} in jail. Manual actions are locked.`, "bad");
     WB.UI.bubble(WB.pick([
       "Okay this is fine. This is a networking opportunity. In prison.",
@@ -440,7 +474,7 @@ WB.CRIME = (function () {
   // spoiled before the movie plays.
   // crewSize: total crew (you + partners). 1 = solo, 2 = one friend, 3+ = a full
   // online lobby. A bigger crew lowers the risk and grows the total take.
-  function commitHard(id, withFriend, crewSize) {
+  function commitHard(id, withFriend, crewSize, planQ) {
     const s = S(), c = crimeState();
     const cr = HARD_CRIMES.find(x => x.id === id);
     if (!cr) return null;
@@ -451,6 +485,9 @@ WB.CRIME = (function () {
     const crew = Math.max(1, crewSize || (withFriend ? 2 : 1));
     let risk = catchChance(cr);
     if (crew >= 2) risk *= Math.max(0.42, 0.66 - crew * 0.03); // crew2≈0.6 … bigger = safer
+    // Planning quality (0..1) swings the risk hard: a tight plan is much safer,
+    // a sloppy one is actively dangerous.
+    if (planQ != null) risk *= Math.max(0.25, 1.15 - planQ * 0.9);
     const caught = WB.chance(risk);
     if (caught) {
       const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
