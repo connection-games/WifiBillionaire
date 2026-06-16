@@ -275,6 +275,12 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.3.2 — Family business 🕴️🌍", items: [
+      "🔧 Fixed: your syndicate now STAYS. Leaving and logging back in keeps your family — no more starting over (it was being restored before sign-in finished).",
+      "⚙️ NEW: a clean Mafia management screen — tap your family's name to manage the pot, members, roles & cuts, recruiting, and your turf, all in one popup.",
+      "🕴️ Running rackets finally looks the part: a dedicated mafia status (planning, looking for members, counting the take…) and your character runs the family from his desk — fedora, cigar, stacks of cash.",
+      "🌍 NEW: six more languages — Русский, Deutsch, Français, Español, Português, Italiano (Settings → General).",
+    ]},
     { v: "v7.3.1 — A bigger room 🔍", items: [
       "🔍 The room/character box is noticeably bigger now — a wider scene column and a tighter layout underneath give the pixel room more of the screen, so the turf map (and your character) have real space to breathe.",
       "🗺️ The turf map now fully covers the room when open — no more housing label or project bar peeking through.",
@@ -537,8 +543,14 @@ WB.UI = (function () {
     const curLang = WB.I18N.lang();
     const langSec = `<label class="set-label">${WB.t("🌍 Language")}</label>
       <select class="set-input" id="lang-sel">
-        <option value="en" ${curLang === "en" ? "selected" : ""}>English</option>
-        <option value="sv" ${curLang === "sv" ? "selected" : ""}>Svenska 🇸🇪 (SEK)</option>
+        <option value="en" ${curLang === "en" ? "selected" : ""}>🇬🇧 English</option>
+        <option value="sv" ${curLang === "sv" ? "selected" : ""}>🇸🇪 Svenska (SEK)</option>
+        <option value="ru" ${curLang === "ru" ? "selected" : ""}>🇷🇺 Русский</option>
+        <option value="de" ${curLang === "de" ? "selected" : ""}>🇩🇪 Deutsch</option>
+        <option value="fr" ${curLang === "fr" ? "selected" : ""}>🇫🇷 Français</option>
+        <option value="es" ${curLang === "es" ? "selected" : ""}>🇪🇸 Español</option>
+        <option value="pt" ${curLang === "pt" ? "selected" : ""}>🇵🇹 Português</option>
+        <option value="it" ${curLang === "it" ? "selected" : ""}>🇮🇹 Italiano</option>
       </select>
       <div class="muted" style="text-align:left;margin:6px 2px 14px">${WB.t("Choose your language. Swedish switches money to SEK.")}</div>`;
     let curMode = "casual";
@@ -1012,9 +1024,15 @@ WB.UI = (function () {
           <label class="ob-label">👤 ${WB.t("Username")} <span class="ob-hint">— ${WB.t("how you'll show on the global leaderboard")}</span></label>
           <input id="ob-name" class="ob-input" maxlength="20" placeholder="${WB.t("e.g. RamenTycoon")}" autocomplete="off" spellcheck="false" value="${esc(name)}">
           <label class="ob-label">🌍 ${WB.t("Language")}</label>
-          <div class="ob-choices" id="ob-lang">
+          <div class="ob-choices ob-langs" id="ob-lang">
             <button class="ob-choice ${lang === "en" ? "active" : ""}" data-v="en">🇬🇧 English</button>
             <button class="ob-choice ${lang === "sv" ? "active" : ""}" data-v="sv">🇸🇪 Svenska</button>
+            <button class="ob-choice ${lang === "ru" ? "active" : ""}" data-v="ru">🇷🇺 Русский</button>
+            <button class="ob-choice ${lang === "de" ? "active" : ""}" data-v="de">🇩🇪 Deutsch</button>
+            <button class="ob-choice ${lang === "fr" ? "active" : ""}" data-v="fr">🇫🇷 Français</button>
+            <button class="ob-choice ${lang === "es" ? "active" : ""}" data-v="es">🇪🇸 Español</button>
+            <button class="ob-choice ${lang === "pt" ? "active" : ""}" data-v="pt">🇵🇹 Português</button>
+            <button class="ob-choice ${lang === "it" ? "active" : ""}" data-v="it">🇮🇹 Italiano</button>
           </div>
           <label class="ob-label">🎨 ${WB.t("Theme")}</label>
           <div class="ob-choices" id="ob-theme">
@@ -2303,7 +2321,30 @@ WB.UI = (function () {
         <button class="gang-btn claim" data-act="gangcreate" style="margin-top:8px">🕴️ ${WB.t("Form the family")}</button>
       </div>`;
     }
-    const d = gang.data, members = d.members || {}, uids = Object.keys(members), me = WB.CLOUD.uid;
+    // Compact card in the crime tab — the whole thing opens the manager popup.
+    const d = gang.data, members = d.members || {}, uids = Object.keys(members);
+    return `
+      <div class="gang-card">
+        <button class="gang-hero gang-hero-btn" data-act="gangmanage" title="${WB.t("Manage the family")}">
+          <div class="gang-hero-ico">🕴️</div>
+          <div class="gang-hero-main">
+            <div class="gang-name">${esc(d.name || "The Family")} <span class="gang-cog">⚙️</span></div>
+            <div class="gang-hero-sub">${uids.length} ${WB.t("made members")} · ${WB.t("tap to manage")}</div>
+          </div>
+        </button>
+        <div class="gang-pot-box"><div class="gang-pot">${WB.fmt(d.pot || 0, true)}</div><div class="gang-pot-label">${WB.t("Syndicate pot")}</div></div>
+        <div class="gang-quick">
+          <button class="gang-btn turf" data-act="turfmap">🗺️ ${WB.t("Turf map")}</button>
+          <button class="gang-btn" data-act="gangmanage">⚙️ ${WB.t("Manage family")}</button>
+        </div>
+      </div>`;
+  }
+  // ---------- Mafia management popup (name/pot/members/cuts/turf in one screen) ----------
+  let gangMgrTimer = null;
+  function gangManagerBody() {
+    const d = gang.data;
+    if (!d) return `<div class="gang-empty">${WB.t("The family is gone.")}</div>`;
+    const members = d.members || {}, uids = Object.keys(members), me = WB.CLOUD.uid;
     const isBoss = d.boss === me;
     const memberHtml = uids.map(u => {
       const m = members[u], ini = (m.name || "?").trim().charAt(0).toUpperCase();
@@ -2315,7 +2356,6 @@ WB.UI = (function () {
         ${m.boss ? `<span class="gang-boss-tag">BOSS</span>` : (isBoss ? `<button class="gang-edit" data-act="gangedit" data-key="${esc(u)}" data-name="${esc(m.name)}" title="Set role &amp; cut">✎</button>` : "")}
       </div>`;
     }).join("");
-    const bossControls = isBoss ? `<div class="gang-rename"><input class="gang-create-input" id="gang-rename-in" maxlength="24" placeholder="${WB.t("Rename the family…")}" value="${esc(d.name || "")}"><button class="gang-btn" data-act="gangrename">${WB.t("Rename")}</button></div>` : "";
     const inSet = new Set(uids), seen = new Set(), cands = [];
     (social.friends || []).filter(f => f.online).forEach(f => cands.push({ uid: f.uid, name: f.name }));
     (gang.online || []).forEach(p => cands.push({ uid: p.uid, name: p.name }));
@@ -2324,22 +2364,68 @@ WB.UI = (function () {
       const ini = (c.name || "?").trim().charAt(0).toUpperCase();
       return `<div class="gang-invite-row"><span class="gang-avatar">${esc(ini)}</span><span class="gang-invite-name">${esc(c.name)}</span><button class="gang-invite-btn" data-act="ganginvite" data-key="${esc(c.uid)}" data-name="${esc(c.name)}">＋ ${WB.t("Invite")}</button></div>`;
     }).join("") : `<div class="gang-empty">${WB.t("No one online to recruit right now.")}</div>`;
+    const bossRename = isBoss ? `<div class="gang-rename"><input class="gang-create-input" id="gm-rename-in" maxlength="24" placeholder="${WB.t("Rename the family…")}" value="${esc(d.name || "")}"><button class="gang-btn" data-act="gangrename">${WB.t("Rename")}</button></div>` : "";
     return `
-      <div class="gang-hero">
-        <div class="gang-hero-ico">🕴️</div>
-        <div class="gang-hero-main"><div class="gang-name">${esc(d.name || "The Family")}</div><div class="gang-hero-sub">${uids.length} ${WB.t("made members · every score kicks a cut up to the pot")}</div></div>
+      <div class="gm-hero">
+        <div class="gm-ico">🕴️</div>
+        <div class="gm-id"><b>${esc(d.name || "The Family")}</b><span class="muted">${uids.length} ${WB.t("made members")} · ${isBoss ? WB.t("You're the boss") : WB.t("You're in the family")}</span></div>
       </div>
-      <button class="gang-btn turf" data-act="turfmap" style="margin:0 0 8px">🗺️ ${WB.t("Open the turf map — wage war")}</button>
-      <div class="gang-pot-box"><div class="gang-pot">${WB.fmt(d.pot || 0, true)}</div><div class="gang-pot-label">${WB.t("Syndicate pot")}</div></div>
-      <div class="gang-section">${WB.t("The Family")}</div>
+      <div class="gm-potbar">
+        <div><div class="gang-pot">${WB.fmt(d.pot || 0, true)}</div><div class="gang-pot-label">${WB.t("Syndicate pot")} · ${WB.t("every score kicks up a cut")}</div></div>
+        ${isBoss ? `<button class="gang-btn claim" data-act="gangclaim" ${(d.pot || 0) > 0 ? "" : "disabled"}>💰 ${WB.t("Split the pot")}</button>` : ""}
+      </div>
+      ${bossRename}
+      <div class="gang-section">${WB.t("The Family")}${isBoss ? ` <span class="muted" style="font-weight:400">— ${WB.t("tap ✎ to set role & cut")}</span>` : ""}</div>
       <div class="gang-members">${memberHtml}</div>
-      ${bossControls}
       <div class="gang-section">${WB.t("Recruit")}</div>
       <div class="gang-invite">${inviteHtml}</div>
-      <div class="gang-foot">
-        ${isBoss ? `<button class="gang-btn claim" data-act="gangclaim" ${(d.pot || 0) > 0 ? "" : "disabled"}>💰 ${WB.t("Split the pot")}</button>` : ""}
-        <button class="gang-btn leave" data-act="gangleave">${isBoss ? WB.t("Disband") : WB.t("Leave")}</button>
-      </div>`;
+      <div class="gang-section">${WB.t("Turf")}</div>
+      <div class="gm-turf">
+        <span id="gm-turf-count" class="muted">${WB.t("Districts held")}: …</span>
+        <button class="gang-btn turf" data-act="turfmap">🗺️ ${WB.t("Open the turf map")}</button>
+      </div>
+      <div class="gang-foot"><button class="gang-btn leave" data-act="gangleave">${isBoss ? WB.t("Disband the family") : WB.t("Leave the family")}</button></div>`;
+  }
+  function wireGangManagerButtons() {
+    $("modal-content").querySelectorAll("#gm-root [data-act]").forEach(b =>
+      b.onclick = () => handleGangAction(b.dataset.act, b.dataset.key, b.dataset.name));
+  }
+  function refreshGangManager() {
+    const root = document.getElementById("gm-root"); if (!root) return;
+    root.innerHTML = gangManagerBody();
+    WB.I18N.translateDom(root);
+    wireGangManagerButtons();
+    updateGmTurf();
+  }
+  function updateGmTurf() {
+    if (!WB.CLOUD || !WB.CLOUD.fetchDistricts || !gang.id) return;
+    WB.CLOUD.fetchDistricts().then(m => {
+      const n = Object.values(m || {}).filter(x => x.owner === gang.id).length;
+      const el = document.getElementById("gm-turf-count");
+      if (el) el.textContent = `${WB.t("Districts held")}: ${n}`;
+    });
+  }
+  function handleGangAction(act, key, name) {
+    if (act === "gangclaim") claimGangPotFlow();
+    else if (act === "gangleave") { leaveGangFlow(); closeModal(); return; }
+    else if (act === "gangedit") { openGangMemberDialog(key, name); return; }
+    else if (act === "ganginvite") { if (WB.CLOUD && WB.CLOUD.sendGangInvite && gang.id) { WB.CLOUD.sendGangInvite(key, gang.id, (gang.data && gang.data.name) || "the family", playerName()); toast(`📨 ${WB.t("Invited")} ${esc(name || "")}`, "good"); } }
+    else if (act === "gangrename") { const n = ($("gm-rename-in") && $("gm-rename-in").value || "").trim(); if (n && gang.id && WB.CLOUD.renameGang) { WB.CLOUD.renameGang(gang.id, n); toast("🕴️ " + WB.t("The family has a new name."), "good"); } }
+    else if (act === "turfmap") { closeModal(); if (WB.TURF && WB.TURF.open) WB.TURF.open(); return; }
+    setTimeout(refreshGangManager, 250);
+  }
+  function openGangManager() {
+    if (!gang.id || !gang.data) { toast("🕴️ " + WB.t("Form a syndicate first."), "bad"); return; }
+    openModal(`<div id="gm-root">${gangManagerBody()}</div><button class="btn subtle wide" id="gm-close" style="margin-top:12px">${WB.t("Close")}</button>`);
+    $("gm-close").onclick = closeModal;
+    wireGangManagerButtons();
+    updateGmTurf();
+    if (gangMgrTimer) clearInterval(gangMgrTimer);
+    gangMgrTimer = setInterval(() => {
+      if (!modalIsOpen || !document.getElementById("gm-root")) { clearInterval(gangMgrTimer); gangMgrTimer = null; return; }
+      if (!gang.data) { closeModal(); return; }
+      refreshGangManager();
+    }, 1200);
   }
   // incoming gang invite popup (reuses the invite-pop styling)
   function showGangInvitePopup(g) {
@@ -2464,6 +2550,7 @@ WB.UI = (function () {
     else if (act === "ganginvite") { if (WB.CLOUD && WB.CLOUD.sendGangInvite && gang.id) { WB.CLOUD.sendGangInvite(key, gang.id, (gang.data && gang.data.name) || "the family", playerName()); toast(`📨 ${WB.t("Invited")} ${esc(btn.dataset.name || "")}`, "good"); } return; }
     else if (act === "gangrename") { const n = ($("gang-rename-in") && $("gang-rename-in").value || "").trim(); if (n && gang.id && WB.CLOUD.renameGang) { WB.CLOUD.renameGang(gang.id, n); toast("🕴️ " + WB.t("The family has a new name."), "good"); } return; }
     else if (act === "gangedit") { openGangMemberDialog(key, btn.dataset.name); return; }
+    else if (act === "gangmanage") { openGangManager(); return; }
     else if (act === "turfmap") { if (WB.TURF && WB.TURF.open) WB.TURF.open(); return; }
     else if (act === "venture") {
       const r = WB.EMPIRE.buyNext(key);
@@ -2523,6 +2610,15 @@ WB.UI = (function () {
     yard:    ["🌳", "Yard Time", "pacing the perimeter, plotting"],
     poop:    ["💩", "On the Toilet", "very important business"],
   };
+  // running the family rotates through "mafia things" so the doing-bar feels alive
+  const MAFIA_PHASES = [
+    ["🕴️", "Running Rackets", "collecting envelopes on the block"],
+    ["🗺️", "Planning a Move", "marking the map, picking the next target"],
+    ["📞", "Working the Phones", "calling in favors, making offers"],
+    ["👥", "Looking for Members", "scouting fresh muscle for the crew"],
+    ["💼", "Counting the Take", "stacking it, skimming it, washing it"],
+    ["🤝", "A Quiet Sit-Down", "settling business over espresso"],
+  ];
   // what the jail-bound entrepreneur is doing right now (by focus)
   const JAIL_STATUS = {
     workout: ["🏋️", "Prison Workout", "push-ups, pull-ups, protein loaf"],
@@ -2576,6 +2672,16 @@ WB.UI = (function () {
       $("status-icon").textContent = "🚽";
       $("status-label").textContent = WB.t("Bathroom Break");
       $("status-sub").textContent = WB.t("very important business");
+      $("housing-name").textContent = homeName();
+      return;
+    }
+    if (st.focus === "mafia") {
+      // running rackets isn't "coding" — give the mob its own rotating status so
+      // the doing-bar reads "planning / looking for members / counting the take".
+      const p = MAFIA_PHASES[Math.floor(Date.now() / 3500) % MAFIA_PHASES.length];
+      $("status-icon").textContent = p[0];
+      $("status-label").textContent = WB.t(p[1]);
+      $("status-sub").textContent = WB.t(p[2]);
       $("housing-name").textContent = homeName();
       return;
     }
@@ -3046,12 +3152,18 @@ WB.UI = (function () {
     setInterval(cloudSync, 60000);
     setInterval(watchJailForCloud, 1500); // push score the instant you're jailed / bailed
     startSocial(); // friend-request + gift listeners (run all session)
-    if (WB.CLOUD && WB.CLOUD.enabled) loadGang(); else window.addEventListener("wb-cloud-ready", loadGang);
+    // Restore your syndicate ONLY after anonymous auth actually completes.
+    // (The "wb-cloud-ready" event fires the instant cloud.js loads — before
+    // sign-in resolves — so gating on it alone left WB.CLOUD.enabled false and
+    // the gang was never re-watched. That's why a saved mafia "didn't stay".)
+    const restoreGang = () => { if (WB.CLOUD && WB.CLOUD.ready && WB.CLOUD.ready.then) WB.CLOUD.ready.then(ok => { if (ok) loadGang(); }); };
+    if (WB.CLOUD) restoreGang(); else window.addEventListener("wb-cloud-ready", restoreGang);
     setInterval(maybeAskLike, 8000); // "do you like the game?" — fires once
     setInterval(maybeSocialPrize, 75000); // "follow us for a prize" — fires once
     // listen for admin broadcasts (global events) — apply to this player live
     const startBroadcast = () => { if (WB.CLOUD && WB.CLOUD.enabled && WB.CLOUD.watchBroadcast) WB.CLOUD.watchBroadcast(applyBroadcast); };
-    if (WB.CLOUD && WB.CLOUD.enabled) startBroadcast(); else window.addEventListener("wb-cloud-ready", startBroadcast);
+    const restoreBroadcast = () => { if (WB.CLOUD && WB.CLOUD.ready && WB.CLOUD.ready.then) WB.CLOUD.ready.then(ok => { if (ok) startBroadcast(); }); };
+    if (WB.CLOUD) restoreBroadcast(); else window.addEventListener("wb-cloud-ready", restoreBroadcast);
   }
 
   document.addEventListener("DOMContentLoaded", boot);

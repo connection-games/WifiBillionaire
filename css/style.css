@@ -1511,6 +1511,8 @@ html[data-theme="dark"] .crime-btn:hover { background: rgba(41, 151, 255, 0.24);
 }
 .ob-input:focus { outline: none; border-color: #38bdf8; background: rgba(56,189,248,0.08); }
 .ob-choices { display: flex; gap: 8px; }
+.ob-choices.ob-langs { flex-wrap: wrap; }
+.ob-choices.ob-langs .ob-choice { flex: 1 1 calc(50% - 4px); min-width: 0; padding-left: 8px; padding-right: 8px; }
 .ob-choice {
   flex: 1; padding: 11px; border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600;
   background: rgba(255,255,255,0.05); color: #c4cfdf; border: 1px solid rgba(255,255,255,0.14);
@@ -2510,3 +2512,24 @@ html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
 .gang-edit:hover { color: var(--text); background: var(--hover); }
 .gang-rename { display: flex; gap: 6px; margin: 8px 0 4px; }
 .gang-rename .gang-create-input { flex: 1; margin: 0; }
+
+/* v7.3.2 — compact mafia card + management popup */
+.gang-card { display: flex; flex-direction: column; gap: 8px; }
+.gang-hero-btn { width: 100%; text-align: left; cursor: pointer; border: 1px solid var(--border-soft); background: linear-gradient(160deg, rgba(40,30,12,0.5), rgba(20,16,8,0.35)); font: inherit; color: inherit; transition: transform .12s, box-shadow .2s, border-color .2s; }
+.gang-hero-btn:hover { transform: translateY(-1px); border-color: rgba(255,206,77,0.5); box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+.gang-cog { font-size: 12px; opacity: .7; margin-left: 2px; }
+.gang-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.gang-quick .gang-btn { margin: 0; }
+.gang-btn.turf { background: linear-gradient(160deg, rgba(120,60,150,0.28), rgba(60,30,90,0.22)); border-color: rgba(190,120,230,0.4); }
+
+.gm-hero { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.gm-ico { font-size: 30px; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: linear-gradient(160deg, rgba(255,206,77,0.18), rgba(120,60,30,0.18)); border: 1px solid rgba(255,206,77,0.3); flex: 0 0 auto; }
+.gm-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.gm-id b { font-size: 18px; }
+.gm-potbar { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--border-soft); margin-bottom: 10px; }
+.gm-potbar > div:first-child { flex: 1; text-align: left; }
+.gm-potbar .gang-btn { margin: 0; width: auto; flex: 0 0 auto; }
+.gm-turf { display: flex; align-items: center; gap: 10px; }
+.gm-turf .gang-btn { margin: 0; flex: 1; }
+#gm-root .gang-section { margin-top: 14px; }
+#gm-root .gang-members, #gm-root .gang-invite { max-height: 168px; overflow-y: auto; }

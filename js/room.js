@@ -551,6 +551,41 @@ WB.ROOM = (function () {
     px(rx + 2, ry + 12 + hover, 3, 2, "#222"); px(rx + 9, ry + 12 + hover, 3, 2, "#222");
   }
 
+  // 🕴️ mafia mode: the boss runs the family from his desk — fedora, cigar,
+  // stacks of cash he keeps counting, a curl of smoke, a briefcase by the chair.
+  function drawMafiaDesk(desk) {
+    const { dx, dy, dw } = desk;
+    const cx = dx + dw / 2;
+    const chy = FLOOR_Y + 8;
+    const bob = Math.floor(frame / 4) % 2;
+    const hy = chy - 34 - bob;                              // tracks the seated head
+    // fedora over his hair
+    px(cx - 8, hy + 1, 16, 2, "#15151a");                  // brim
+    px(cx - 6, hy - 3, 12, 4, "#1d1d24");                  // crown
+    px(cx - 6, hy, 12, 1, "#7a1f2a");                       // blood-red band
+    // cigar + a slow curl of smoke
+    px(cx + 7, hy + 7, 4, 1, "#5a3a22");
+    px(cx + 11, hy + 7, 1, 1, frame % 6 < 3 ? "#ff7a1a" : "#c0442a"); // ember
+    for (let i = 0; i < 3; i++) {
+      const sy = hy + 4 - ((frame + i * 6) % 18);
+      px(cx + 11 + ((frame + i * 4) % 3), sy, 1, 1, "rgba(205,210,220,0.5)");
+    }
+    // two stacks of cash on the desk
+    px(dx + 4, dy - 6, 14, 6, "#2f7d4f"); px(dx + 4, dy - 6, 14, 1, "#3fa86a");
+    px(dx + 5, dy - 4, 12, 1, "#1f5e3a");
+    px(dx + dw - 20, dy - 7, 14, 7, "#2f7d4f"); px(dx + dw - 20, dy - 7, 14, 1, "#3fa86a");
+    px(dx + dw - 19, dy - 5, 12, 1, "#1f5e3a"); px(dx + dw - 19, dy - 3, 12, 1, "#1f5e3a");
+    // bills being counted, drifting up off the stack
+    for (let i = 0; i < 4; i++) {
+      const t = (frame * 2 + i * 24) % 96;
+      const bxp = cx - 16 + i * 9, byp = dy - 8 - t * 0.4;
+      px(bxp, byp, 5, 3, "#4dde80"); px(bxp + 1, byp + 1, 3, 1, "#1f5e3a");
+    }
+    // a briefcase parked by the chair
+    px(cx - 32, FLOOR_Y + 14, 12, 8, "#2a1d12"); px(cx - 32, FLOOR_Y + 14, 12, 1, "#3a2a1a");
+    px(cx - 27, FLOOR_Y + 12, 2, 2, "#1a120a");            // handle
+  }
+
   function drawStudyProps(desk) {
     const { dx, dy } = desk;
     px(dx + 26, dy - 5, 16, 5, "#f4efe2");                  // open book on the desk
@@ -1989,6 +2024,7 @@ WB.ROOM = (function () {
       if (state === "work") {
         if (s.focus === "study") drawStudyProps(desk);
         if (s.focus === "ai") drawAIBuddy(desk);
+        if (s.focus === "mafia") drawMafiaDesk(desk);
       }
     }
     // smells like startup spirit
