@@ -486,5 +486,54 @@ Cloud.sendGangInvite = async function (targetUid, gangId, gangName, myName) {
   } catch (e) { Cloud.lastError = e.message; return false; }
 };
 
+// ============================================================ TURF MAP / MAFIA WAR (city districts)
+// Every district the players fight over lives at districts/{districtId}. A doc
+// only exists once a real syndicate has seized it; unclaimed districts are filled
+// client-side with fake AI families. Whoever holds a district stores their gang
+// id + the strength they defended it with, so the next attacker sees real odds.
+Cloud.fetchDistricts = async function () {
+  if (!Cloud.enabled || !db) return {};
+  try {
+    const snap = await getDocs(collection(db, "districts"));
+    const out = {};
+    snap.docs.forEach((d) => { out[d.id] = { id: d.id, ...d.data() }; });
+    return out;
+  } catch (e) { Cloud.lastError = e.message; return {}; }
+};
+// live map: re-emits the whole district ownership table whenever anyone seizes turf
+Cloud.watchDistricts = function (cb) {
+  if (!Cloud.enabled || !db) { cb({}); return () => {}; }
+  return onSnapshot(collection(db, "districts"), (s) => {
+    const out = {}; s.docs.forEach((d) => { out[d.id] = { id: d.id, ...d.data() }; }); cb(out);
+  }, () => cb({}));
+};
+// seize a district for your gang (also used to overwrite a rival's claim after a win)
+Cloud.claimDistrict = async function (districtId, gangId, gangName, strength) {
+  if (!Cloud.enabled || !db || !districtId) return false;
+  try {
+    await setDoc(doc(db, "districts", districtId), {
+      owner: gangId || null,
+      ownerName: String(gangName || "A family").slice(0, 24),
+      strength: Math.max(0, Math.floor(strength || 0)),
+      by: Cloud.uid, ts: serverTimestamp(),
+    }, { merge: true });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+// tell the rival boss their turf was attacked (gangId is `${bossUid}_gang`).
+// won=true → they lost the district; won=false → they held it. Lands in their inbox.
+Cloud.sendWarNotice = async function (enemyGangId, attackerName, districtName, won) {
+  if (!Cloud.enabled || !db || !enemyGangId) return false;
+  const bossUid = String(enemyGangId).replace(/_gang$/, "");
+  if (!bossUid || bossUid === Cloud.uid) return false;
+  try {
+    await addDoc(collection(db, "scores", bossUid, "inbox"),
+      { type: "war", attacker: String(attackerName || "A rival crew").slice(0, 24),
+        district: String(districtName || "your turf").slice(0, 32), won: !!won,
+        fromName: String(attackerName || "A rival crew").slice(0, 24), ts: serverTimestamp() });
+    return true;
+  } catch (e) { Cloud.lastError = e.message; return false; }
+};
+
 WB.CLOUD = Cloud;
 window.dispatchEvent(new Event("wb-cloud-ready"));

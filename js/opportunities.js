@@ -23,6 +23,7 @@
     if (document.getElementById("splash")) return true;
     if (WB.ROOM && WB.ROOM.cutActive && WB.ROOM.cutActive()) return true;
     if (document.querySelector(".plan-overlay")) return true; // not during heist planning
+    if (WB.TURF && WB.TURF.isOpen && WB.TURF.isOpen()) return true; // not while the turf map is open
     if (document.getElementById("onboard")) return true;
     if (WB.CRIME && WB.CRIME.inPrison && WB.CRIME.inPrison()) return true;
     const ov = document.getElementById("modal-overlay");

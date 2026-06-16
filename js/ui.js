@@ -275,6 +275,13 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.3.0 — Turf War 🗺️⚔️", items: [
+      "🗺️ NEW: the TURF MAP — tap the map button in your room to open a neon city of 12 districts. See rival player syndicates (red) and AI families (slate) holding the streets. It's only touchable while open, so it never gets in your way.",
+      "⚔️ NEW: MAFIA WARS — target any district, plan the raid, and throw your family's muscle against its defenders. Win and you SEIZE the block (cash to you + the pot, and your colours go up); lose and you get pushed back with the heat rising.",
+      "🩸 Attack a real player's turf and their boss gets a war notice in their inbox — hold your ground or watch your districts get taken.",
+      "🕴️ Now EVERY score kicks a cut up to the family pot — mafia rackets pay 25%, every other crime and heist a 10% street tax. The boss still splits it by the cuts you set.",
+      "🎬 Two brand-new cutscenes: a block changing hands under your flag, and a raid that goes sideways.",
+    ]},
     { v: "v7.2.0 — The Mafia Update 🕴️", items: [
       "🕴️ NEW: the Mafia — a whole crime category of rackets, a 'Made Man' career path, and real online SYNDICATES: form a family, recruit players, and a cut of every mafia job feeds a shared pot.",
       "👔 Bosses can rename the family, assign roles (Underboss, Capo, Soldier…) and set each member's cut of the pot.",
@@ -1487,6 +1494,15 @@ WB.UI = (function () {
       toast(`🕴️ ${esc(g.gang || "The family")} ${WB.t("paid out — your cut:")} ${WB.fmt(g.amount || 0, true)}`, "good");
       return;
     }
+    if (g.type === "war") { // a rival syndicate attacked your turf
+      const msg = g.won
+        ? `⚔️ ${esc(g.attacker || "A rival crew")} ${WB.t("seized")} ${esc(g.district || "your turf")} ${WB.t("from your family!")}`
+        : `🛡️ ${esc(g.attacker || "A rival crew")} ${WB.t("hit")} ${esc(g.district || "your turf")} — ${WB.t("your crew held the line.")}`;
+      toast(msg, g.won ? "bad" : "good");
+      pushNotif(msg, g.won ? "bad" : "good");
+      if (WB.SOUND) WB.SOUND.play(g.won ? "error" : "win");
+      return;
+    }
     if (g.type === "devreply") { // the developer replied to your message
       toast(`💬 ${esc(g.fromName || "The developer")}: ${esc(g.text || "")}`, "good");
       pushNotif(`💬 ${WB.t("Reply from the developer")}: ${g.text || ""}`, "good");
@@ -1926,6 +1942,10 @@ WB.UI = (function () {
       const reveal = () => {
         WB.CRIME.finalizeHardJob(r); // money lands / jail door closes — after the movie
         if (WB.SOUND) WB.SOUND.play(r.win ? "win" : "lose");
+        if (r.win && r.money > 0) { // the family takes a 10% cut of every heist score too
+          const fed = feedPot(r.money, 0.10);
+          if (fed > 0) r.lines = (r.lines || []).concat(`🕴️ ${WB.fmt(fed, true)} ${WB.t("into the syndicate pot.")}`);
+        }
         if (withFriend && friend && r.win) {
           if (friend.uid === ADAM_UID) toast("🐐 Adam: clean job, partner. Same time next week?", "good");
           else if (WB.CLOUD && WB.CLOUD.enabled) {
@@ -2186,6 +2206,7 @@ WB.UI = (function () {
 
   // ============================================================ 🕴️ Mafia / Syndicate (persistent gang)
   const gang = { id: null, data: null, unsub: null, online: [] };
+  WB.GANG = gang; // exposed so the turf-map / war module can read the player's syndicate
   function watchMyGang() {
     if (!WB.CLOUD || !WB.CLOUD.enabled || !gang.id) return;
     if (gang.unsub) { gang.unsub(); gang.unsub = null; }
@@ -2228,6 +2249,14 @@ WB.UI = (function () {
     gang.id = null; gang.data = null; try { localStorage.removeItem("wb_gang"); } catch (e) {}
     toast(isBoss ? "🕴️ " + WB.t("You disbanded the family.") : "👋 " + WB.t("You left the family."), "bad"); renderTab(true);
   }
+  // Kick a `rate` cut of any score up to the family pot. Returns the cut paid
+  // (0 if you're not in a gang or offline). Used by every crime + every heist.
+  function feedPot(amount, rate) {
+    if (!(amount > 0) || !gang.id || !WB.CLOUD || !WB.CLOUD.enabled || !WB.CLOUD.contributeToGang) return 0;
+    const cut = Math.floor(amount * (rate || 0.1));
+    if (cut > 0) WB.CLOUD.contributeToGang(gang.id, cut);
+    return cut;
+  }
   function claimGangPotFlow() {
     if (!gang.id || !WB.CLOUD.claimGangPot) return;
     WB.CLOUD.claimGangPot(gang.id, playerName()).then(share => {
@@ -2265,7 +2294,7 @@ WB.UI = (function () {
     if (!gang.id || !gang.data) {
       return `<div class="gang-create">
         <div class="gang-section">🕴️ ${WB.t("Start a Syndicate")}</div>
-        <p class="muted" style="margin:0 0 8px">${WB.t("Form a family, recruit your crew, and a cut of every mafia job feeds a shared pot the boss splits.")}</p>
+        <p class="muted" style="margin:0 0 8px">${WB.t("Form a family, recruit your crew, seize city districts on the turf map, and a cut of every score feeds a shared pot the boss splits.")}</p>
         <input class="gang-create-input" id="gang-name" placeholder="${WB.t("Family name…")}" maxlength="24" autocomplete="off">
         <button class="gang-btn claim" data-act="gangcreate" style="margin-top:8px">🕴️ ${WB.t("Form the family")}</button>
       </div>`;
@@ -2294,8 +2323,9 @@ WB.UI = (function () {
     return `
       <div class="gang-hero">
         <div class="gang-hero-ico">🕴️</div>
-        <div class="gang-hero-main"><div class="gang-name">${esc(d.name || "The Family")}</div><div class="gang-hero-sub">${uids.length} ${WB.t("made members · a 25% cut of every mafia job feeds the pot")}</div></div>
+        <div class="gang-hero-main"><div class="gang-name">${esc(d.name || "The Family")}</div><div class="gang-hero-sub">${uids.length} ${WB.t("made members · every score kicks a cut up to the pot")}</div></div>
       </div>
+      <button class="gang-btn turf" data-act="turfmap" style="margin:0 0 8px">🗺️ ${WB.t("Open the turf map — wage war")}</button>
       <div class="gang-pot-box"><div class="gang-pot">${WB.fmt(d.pot || 0, true)}</div><div class="gang-pot-label">${WB.t("Syndicate pot")}</div></div>
       <div class="gang-section">${WB.t("The Family")}</div>
       <div class="gang-members">${memberHtml}</div>
@@ -2414,11 +2444,11 @@ WB.UI = (function () {
       if (r && r.refused) { toast("🚫 " + r.refused, "bad"); }
       else if (r) {
         const cr = WB.CRIME.CRIMES.find(x => x.id === key);
-        // mafia job → a 25% cut feeds the shared syndicate pot
-        if (r.win && cr && cr.mafia && gang.id && WB.CLOUD && WB.CLOUD.enabled && r.money > 0) {
-          const cut = Math.floor(r.money * 0.25);
-          if (WB.CLOUD.contributeToGang) WB.CLOUD.contributeToGang(gang.id, cut);
-          r.lines = (r.lines || []).concat(`🕴️ ${WB.fmt(cut, true)} into the syndicate pot.`);
+        // EVERY score kicks up to the family — mafia rackets pay a fat 25% cut,
+        // every other job a standard 10% street tax. The boss splits the pot.
+        if (r.win && cr && !cr.launder && r.money > 0) {
+          const fed = feedPot(r.money, cr.mafia ? 0.25 : 0.10);
+          if (fed > 0) r.lines = (r.lines || []).concat(`🕴️ ${WB.fmt(fed, true)} ${WB.t("into the syndicate pot.")}`);
         }
         if (WB.SOUND) WB.SOUND.play(r.win ? (cr && cr.launder ? "open" : "cash") : "error");
         openResult({ ...r, money: r.money });
@@ -2430,6 +2460,7 @@ WB.UI = (function () {
     else if (act === "ganginvite") { if (WB.CLOUD && WB.CLOUD.sendGangInvite && gang.id) { WB.CLOUD.sendGangInvite(key, gang.id, (gang.data && gang.data.name) || "the family", playerName()); toast(`📨 ${WB.t("Invited")} ${esc(btn.dataset.name || "")}`, "good"); } return; }
     else if (act === "gangrename") { const n = ($("gang-rename-in") && $("gang-rename-in").value || "").trim(); if (n && gang.id && WB.CLOUD.renameGang) { WB.CLOUD.renameGang(gang.id, n); toast("🕴️ " + WB.t("The family has a new name."), "good"); } return; }
     else if (act === "gangedit") { openGangMemberDialog(key, btn.dataset.name); return; }
+    else if (act === "turfmap") { if (WB.TURF && WB.TURF.open) WB.TURF.open(); return; }
     else if (act === "venture") {
       const r = WB.EMPIRE.buyNext(key);
       if (r.refused) toast("🚫 " + r.refused, "bad");
@@ -3021,5 +3052,6 @@ WB.UI = (function () {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { toast, bubble, confetti, openResult, showPrison, hidePrison, getSetting, showSettings, showWhatsNew };
+  return { toast, bubble, confetti, openResult, showPrison, hidePrison, getSetting, showSettings, showWhatsNew,
+    refreshTab: () => { try { renderTab(true); renderHud(); } catch (e) {} } };
 })();

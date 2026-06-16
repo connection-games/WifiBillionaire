@@ -1351,6 +1351,71 @@ WB.ROOM = (function () {
     caption(duo ? "Roadblock. Hands up, both of you. It's over." : "Roadblock. Hands up. It's over.", 158);
   }
 
+  // --- turf war scenes (⚔️ mafia map: take a district / get pushed back) ---
+  // A neon-noir block: rival storefront on the right, your crew rolling in.
+  function turfBlock(offset) {
+    px(0, 0, W, 120, "#0b0f22");                       // night sky
+    const r = srand(53);
+    for (let i = 0; i < 22; i++) { const sx = Math.floor(r() * W), sy = Math.floor(r() * 48); if (i % 3) px(sx, sy, 1, 1, "#aeb9ff"); }
+    // storefronts with glowing signs
+    for (let i = -1; i < 6; i++) {
+      const bx = ((i * 60 - offset) % (W + 60) + W + 60) % (W + 60) - 60;
+      const bh = 60 + ((i * 29) % 30);
+      px(bx, 120 - bh, 52, bh, "#161c33");
+      px(bx + 4, 120 - bh + 4, 44, 9, (i % 2) ? "#ff4d6d" : "#39d0ff"); // neon sign
+      for (let wn = 0; wn < bh / 12; wn++) px(bx + 6 + (wn % 3) * 15, 120 - bh + 18 + wn * 12, 7, 6, (i + wn) % 3 ? "#ffd97a" : "#2a3350");
+    }
+    px(0, 120, W, H - 120, "#15171f");                 // wet asphalt
+    px(0, 120, W, 2, "#2a2d36");
+    for (let i = 0; i < 5; i++) px(20 + i * 64, 150, 30, 2, "rgba(255,210,120,0.35)"); // reflections
+  }
+  function turfWarTake(p) {
+    turfBlock(frame * 1.4);
+    const red = Math.floor(frame / 3) % 2;
+    // a torched rival car smoking on the right
+    px(232, FLOOR_Y - 7, 40, 9, "#241015"); px(244, FLOOR_Y - 12, 18, 6, "#1a0c10");
+    for (let i = 0; i < 4; i++) px(248 + (i % 2) * 4, FLOOR_Y - 16 - ((frame + i * 7) % 14), 4, 4, (frame + i) % 2 ? "#5a5f6e" : "#3a3f4e"); // smoke
+    if (red) px(236 + (frame % 3) * 3, FLOOR_Y - 6, 6, 5, "#ff7a1a"); // flicker of flame
+    // your crew advancing, claiming the block
+    const step = Math.floor(frame / 4) % 2, x = 24 + p * 80;
+    tinyGuy(x, FLOOR_Y, "#1d1f24", step);
+    tinyGuy(x - 16, FLOOR_Y, "#6e1f1f", !step);        // capo in oxblood
+    tinyGuy(x - 31, FLOOR_Y, "#2a2f4e", step);
+    // your colors going up — a gold banner unfurling
+    if (p > 0.4) { const bh = Math.min(34, (p - 0.4) * 90); px(150, 28, 26, bh, "#caa23a"); px(154, 32, 18, Math.max(0, bh - 8), "#e7c34a"); }
+    caption(p < 0.5 ? "Roll in deep. This block changes hands tonight." : "Their sign comes down. Ours goes up.", 158);
+  }
+  function turfWarHold(p) {
+    px(0, 0, W, H, "#0a0e1c");
+    skylinePan(frame * 2);
+    px(0, 120, W, H - 120, "#15181f"); px(0, 120, W, 2, "#262a33");
+    // a sit-down at a lamplit table — the handshake that seals the district
+    px(120, FLOOR_Y - 14, 80, 4, "#3a2f22");           // table
+    px(126, FLOOR_Y - 10, 6, 10, "#241c14"); px(192, FLOOR_Y - 10, 6, 10, "#241c14");
+    px(150, FLOOR_Y - 40, 4, 26, "#2a2f3e"); px(146, FLOOR_Y - 44, 12, 6, "#ffd97a"); // hanging lamp
+    ctx.fillStyle = "rgba(255,217,122,0.10)"; ctx.beginPath(); ctx.moveTo(152, 100); ctx.lineTo(120, 150); ctx.lineTo(184, 150); ctx.closePath(); ctx.fill();
+    tinyGuy(108, FLOOR_Y, "#1d1f24", 0);
+    tinyGuy(208, FLOOR_Y, "#3a1f1f", 0);
+    if (p > 0.5) { px(150, FLOOR_Y - 18, 12, 3, "#caa23a"); } // the envelope on the table
+    if (p > 0.78) { ctx.fillStyle = `rgba(10,8,4,${(p - 0.78) * 3})`; ctx.fillRect(0, 0, W, H); }
+    caption(p < 0.5 ? "The other families get the message." : "District secured. The tribute starts flowing.", 158);
+  }
+  function turfRaidPush(p) {
+    turfBlock(frame * 2.2);
+    const red = Math.floor(frame / 2) % 2;
+    ctx.fillStyle = red ? "rgba(255,40,40,0.16)" : "rgba(40,90,255,0.10)";
+    ctx.fillRect(0, 0, W, H);                            // siren / muzzle wash
+    // rival crew dug in on the right, your guys pinned and falling back left
+    const cstep = Math.floor(frame / 4) % 2;
+    tinyGuy(262, FLOOR_Y, "#3a1f1f", cstep); tinyGuy(280, FLOOR_Y, "#2a1414", !cstep);
+    for (let i = 0; i < 6; i++) { const tx = 256 - ((frame * 10 + i * 40) % 240); px(tx, FLOOR_Y - 5 - (i % 2) * 3, 9, 1, "#ffe27a"); } // incoming fire
+    const step = Math.floor(frame / 3) % 2, x = 70 - p * 40;
+    tinyGuy(x, FLOOR_Y, "#1d1f24", step);
+    tinyGuy(x + 16, FLOOR_Y, "#6e1f1f", !step);
+    if (p > 0.7) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.7) * 3.3})`; ctx.fillRect(0, 0, W, H); }
+    caption(p < 0.5 ? "It's a setup — they were waiting for us." : "Pull back! We don't take this block today.", 158);
+  }
+
   // --- lifestyle / "spending the money" scenes ---
   function sceneNightDrive(p) {
     skylinePan(frame * 3);
@@ -1635,6 +1700,14 @@ WB.ROOM = (function () {
       { dur: 2600, draw: p => heistBustShootout(p, true) },
       { dur: 2800, draw: p => heistBustChase(p, true) },
       { dur: 2600, draw: p => heistBustCaught(p, true) },
+    ],
+    turfWar: [
+      { dur: 2600, draw: turfWarTake },
+      { dur: 2600, draw: turfWarHold },
+    ],
+    turfRaid: [
+      { dur: 2400, draw: turfRaidPush },
+      { dur: 2400, draw: turfRaidPush },
     ],
     arrest: [
       { dur: 2100, draw: sceneKnock },

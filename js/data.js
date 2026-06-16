@@ -290,7 +290,7 @@ WB.DATA = (function () {
 })();
 
 // ---------- Build version (keep in sync with package.json) ----------
-WB.VERSION = "7.2.0";
+WB.VERSION = "7.3.0";
 
 // ---------- Number formatting ----------
 WB.fmt = function (n, money) {
