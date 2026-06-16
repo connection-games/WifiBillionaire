@@ -252,7 +252,7 @@
     s.textContent = `
 #room-frame { position: relative; }
 #turf-btn {
-  position: absolute; top: 8px; right: 8px; z-index: 6;
+  position: absolute; top: 8px; right: 8px; z-index: 9;
   width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
   border: 1px solid rgba(255,255,255,0.18); font-size: 17px; line-height: 1;
   background: linear-gradient(160deg, rgba(20,26,52,0.92), rgba(10,12,28,0.92));
@@ -261,7 +261,7 @@
 #turf-btn:hover { transform: translateY(-1px) scale(1.05); }
 #turf-btn.on { box-shadow: 0 0 0 2px #ffce4d, 0 4px 16px rgba(255,200,60,0.5); }
 #turf-overlay {
-  position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0;
+  position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0;
   display: flex; flex-direction: column; overflow: hidden;
   background:
     radial-gradient(120% 90% at 50% -10%, rgba(80,40,140,0.35), transparent 60%),

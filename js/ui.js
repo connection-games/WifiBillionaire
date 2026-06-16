@@ -275,6 +275,10 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.3.1 — A bigger room 🔍", items: [
+      "🔍 The room/character box is noticeably bigger now — a wider scene column and a tighter layout underneath give the pixel room more of the screen, so the turf map (and your character) have real space to breathe.",
+      "🗺️ The turf map now fully covers the room when open — no more housing label or project bar peeking through.",
+    ]},
     { v: "v7.3.0 — Turf War 🗺️⚔️", items: [
       "🗺️ NEW: the TURF MAP — tap the map button in your room to open a neon city of 12 districts. See rival player syndicates (red) and AI families (slate) holding the streets. It's only touchable while open, so it never gets in your way.",
       "⚔️ NEW: MAFIA WARS — target any district, plan the raid, and throw your family's muscle against its defenders. Win and you SEIZE the block (cash to you + the pot, and your colours go up); lose and you get pushed back with the heat rising.",

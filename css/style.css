@@ -2481,6 +2481,29 @@ html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ============================================================ v7.3 — a bigger "person box"
+   The pixel room had been squeezed thin by everything stacked beneath it. The
+   room frame is a locked 16:9 box, so on a desktop window its size is capped by
+   the leftover *height* in the scene column. This pass funnels space back into
+   it on both axes: a wider scene column + trimmer right panel (more width), and
+   a tighter rhythm under the room — scene padding/gaps, the actions bar and the
+   character panel all shave a few pixels — so the reclaimed *height* goes
+   straight into the room. A taller min-height keeps it generous. Source order =
+   highest priority, so this wins over the earlier "roomier" pass. */
+@media (min-width: 1101px) {
+  #scene { flex: 1.95; padding: 13px 16px; gap: 9px; }    /* wider column, less air around it */
+  #side  { min-width: 360px; max-width: 452px; }          /* hand that width back to the room */
+  #room-wrap { min-height: 200px; }                       /* a floor that still fits short windows */
+  #actions-bar { height: 54px; }                          /* shave the stacked widgets… */
+  #char-panel { padding: 11px 16px 10px; gap: 8px; }      /* …so the room can grow taller */
+  #char-meters { gap: 7px 16px; }
+  #status-icon { width: 36px; height: 36px; font-size: 20px; }
+}
+/* Narrow / stacked layout: the room is a fixed band there — make that band taller too. */
+@media (max-width: 1100px) {
+  #room-wrap { height: 380px; }
+}
+
 /* v7.1 — gang management (roles, cuts, rename) */
 .gang-role { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 1px; }
 .gang-edit { background: var(--panel2); border: 1px solid var(--border-soft); color: var(--muted); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; flex: 0 0 auto; font-size: 13px; }
