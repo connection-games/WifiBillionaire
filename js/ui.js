@@ -275,6 +275,10 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.4.2 — Fits anywhere 📐", items: [
+      "📐 The whole game now fits neatly in small landscape windows (down to 800×450) without scrolling — room, controls and shop all on screen, text readable.",
+      "🧹 Tidied the layout for embedded play.",
+    ]},
     { v: "v7.4.1 — Bigger room, cleaner UI 🔍", items: [
       "🔍 The pixel room is now front and center — much bigger, and the whole left side is calmer.",
       "🎯 The wall of focus buttons is folded into ONE tidy picker: tap it to open a grouped menu (Hustles / Grow & Live) and choose what he's doing.",
@@ -508,6 +512,11 @@ WB.UI = (function () {
     { id: "github",  icon: "🐙", name: "GitHub",  label: "Wifi Billionaire on GitHub", url: "https://github.com/connection-games/WifiBillionaire" },
     { id: "itch",    icon: "🎮", name: "itch.io", label: "Wifi Billionaire on itch.io", url: "https://wifi-billionare.itch.io/wifi-billionaire" },
   ];
+  // CrazyGames forbids cross-promotion to other game platforms (itch.io, GitHub).
+  // The CrazyGames build sets window.IS_CRAZYGAMES — there we drop those links and
+  // keep only first-party social media (TikTok, Discord), which CG allows.
+  const onCrazy = () => !!window.IS_CRAZYGAMES;
+  const socialsFor = () => onCrazy() ? SOCIALS.filter(s => s.id !== "github" && s.id !== "itch") : SOCIALS;
   function settingsBody() {
     if (settingsTab === "about") {
       return `
@@ -520,7 +529,7 @@ WB.UI = (function () {
           <h3>🌐 Follow Us</h3>
           <p>Updates, behind-the-scenes and giveaways — come hang out:</p>
           <div class="social-row">
-            ${SOCIALS.map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}
+            ${socialsFor().map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}
           </div>
         </div>
         <div class="about-card">
@@ -528,7 +537,7 @@ WB.UI = (function () {
           <p>Have a tip, a bug, or need a hand? Reach the dev directly:</p>
           <div class="contact-row">
             <a class="contact-pill" href="mailto:cntngames96@gmail.com" target="_blank" rel="noopener">📧 cntngames96@gmail.com</a>
-            <a class="contact-pill" href="https://github.com/connection-games/WifiBillionaire/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>
+            ${onCrazy() ? "" : `<a class="contact-pill" href="https://github.com/connection-games/WifiBillionaire/issues" target="_blank" rel="noopener">🐙 GitHub — report ideas &amp; bugs</a>`}
           </div>
           <button class="btn primary wide" id="support-btn" style="margin-top:10px">🆘 ${WB.t("Message the developer")}</button>
         </div>`;
@@ -608,10 +617,10 @@ WB.UI = (function () {
       <h2>${WB.t("Enjoying WiFi Billionaire?")}</h2>
       <p class="muted">${WB.t("Your honest take genuinely helps.")}</p>
       <div class="ev-choices">
-        <button class="btn choice" id="like-yes"><b>😄 ${WB.t("Yes, love it!")}</b><small>${WB.t("Give it a ⭐ on GitHub")}</small></button>
+        <button class="btn choice" id="like-yes"><b>😄 ${WB.t("Yes, love it!")}</b><small>${onCrazy() ? WB.t("Rate us right here on CrazyGames!") : WB.t("Give it a ⭐ on GitHub")}</small></button>
         <button class="btn choice" id="like-no"><b>😐 ${WB.t("Not really")}</b><small>${WB.t("Tell us what to fix")}</small></button>
       </div>`);
-    $("like-yes").onclick = () => { closeModal(); openExternal(REPO_URL); toast(WB.t("⭐ Thank you! A star means the world."), "good"); };
+    $("like-yes").onclick = () => { closeModal(); if (!onCrazy()) openExternal(REPO_URL); toast(WB.t("⭐ Thank you! It means the world."), "good"); };
     $("like-no").onclick = () => { closeModal(); showSurvey(); };
   }
   function showSurvey() {
@@ -639,7 +648,7 @@ WB.UI = (function () {
       <div class="ev-icon">🎁</div>
       <h2>${WB.t("Follow us for a prize!")}</h2>
       <p>${WB.t("Tap any of our socials and claim a fat")} <b>${WB.fmt(reward, true)}</b> ${WB.t("bonus — on the house.")}</p>
-      <div class="social-row">${SOCIALS.map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener" data-social="1"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}</div>
+      <div class="social-row">${socialsFor().map(s => `<a class="social-pill" href="${s.url}" target="_blank" rel="noopener" data-social="1"><span class="social-ico">${s.icon}</span><span class="social-meta"><b>${s.name}</b><small>${WB.t(s.label)}</small></span></a>`).join("")}</div>
       <button class="btn subtle wide" id="social-skip" style="margin-top:10px">${WB.t("Maybe later")}</button>`);
     let claimed = false;
     const claim = () => {

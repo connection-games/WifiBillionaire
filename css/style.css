@@ -2558,6 +2558,43 @@ html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
   #room-wrap { height: 400px; }
 }
 
+/* ============================================================ Compact LANDSCAPE
+   For short, wide viewports — chiefly the CrazyGames iframe (tested at 907×510
+   and 800×450). The default narrow layout stacks into a tall scrolling page,
+   which on a fixed iframe hides every control below the fold. Here we keep the
+   room + controls side-by-side and fit the WHOLE game in the viewport with no
+   page scroll (only the right tab panel scrolls). Must come AFTER the max-width
+   rule above so it wins. */
+@media (min-width: 680px) and (max-height: 640px) {
+  body { overflow: hidden; }
+  #app { height: 100vh; min-height: 0; }
+  #main { flex-direction: row; }
+  #topbar { padding: 7px 14px; gap: 12px; }
+  #goal-banner { padding: 5px 14px; }
+  #scene { flex: 1.5; padding: 7px 9px; gap: 5px; min-width: 0; }
+  #room-wrap { height: auto; flex: 1 1 auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
+  #actions-bar { height: 44px; }
+  #char-panel { padding: 6px 11px; gap: 4px; box-shadow: var(--shadow-sm); }
+  #char-meters { grid-template-columns: repeat(4, 1fr); gap: 3px 12px; }
+  #char-head { gap: 6px; }
+  #status-icon { width: 30px; height: 30px; font-size: 17px; }
+  .status-text b { font-size: 12px; }
+  #status-sub { font-size: 10px; max-width: 180px; }
+  .cbadge, .cchip { padding: 2px 8px; font-size: 10px; }
+  .focus-card { padding: 0 11px; }
+  .focus-card-icon { font-size: 19px; }
+  .focus-card-name { font-size: 12.5px; }
+  #hustle-btn { padding: 6px 18px; font-size: 13px; }
+  #side {
+    flex: 1; min-width: 264px; max-width: 360px;
+    border-left: 1px solid var(--border-soft); border-top: none;
+    background: rgba(255, 255, 255, 0.55);
+  }
+  html[data-theme="dark"] #side { background: rgba(22, 22, 23, 0.45); }
+  #tabs { margin: 8px 10px 4px; }
+  #tab-content { overflow-y: auto; padding: 10px 12px 16px; }
+}
+
 /* v7.1 — gang management (roles, cuts, rename) */
 .gang-role { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 1px; }
 .gang-edit { background: var(--panel2); border: 1px solid var(--border-soft); color: var(--muted); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; flex: 0 0 auto; font-size: 13px; }
