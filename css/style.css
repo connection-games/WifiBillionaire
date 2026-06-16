@@ -942,6 +942,17 @@ html[data-theme="dark"] .crime-cat-chip.active { background: #3a3a3c; color: #ff
   background: linear-gradient(90deg, #34c759, #ffd60a 40%, #ff9f0a 65%, #ff453a);
 }
 .crime-hero-sub { font-size: 10.5px; color: #8a90a3; margin-top: 9px; letter-spacing: 0.1px; }
+.streak-chip { margin-left: auto; font-size: 11px; font-weight: 800; color: #ff8a3d; background: rgba(255,138,61,0.14); border: 1px solid rgba(255,138,61,0.35); border-radius: 999px; padding: 2px 9px; align-self: center; }
+.rap-sheet { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.07); }
+.rap-stat { font-size: 10.5px; color: #8a90a3; white-space: nowrap; }
+.rap-stat b { color: #e7ecf5; font-variant-numeric: tabular-nums; }
+.crime-take { font-size: 11px; color: #34c759; margin-top: 2px; }
+.crime-take b { color: #4dde80; font-variant-numeric: tabular-nums; }
+.gear-summary { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: #8a90a3; margin: -2px 2px 10px; }
+.gear-summary b { font-variant-numeric: tabular-nums; }
+.crime-card.gear { border-color: rgba(190,140,255,0.22); }
+.crime-card.gear:hover { border-color: rgba(190,140,255,0.5); }
+.crime-card.gear.owned { background: linear-gradient(160deg, rgba(52,199,89,0.12), rgba(20,40,28,0.18)); border-color: rgba(52,199,89,0.35); }
 
 .crime-jail {
   background: linear-gradient(135deg, #3a3d43, #2c2e33); color: #f3f4f7;

@@ -250,7 +250,70 @@ WB.CRIME = (function () {
   function crimeState() {
     const s = S();
     if (!s.crime) s.crime = { heat: 0, prisonUntil: 0, prisonReason: "", timesCaught: 0, crimeEarnings: 0, crimesDone: 0, scamSuccess: 0, scamFail: 0, victimsScammed: {} };
+    if (!s.crime.gear) s.crime.gear = {};   // owned black-market tools (id → true)
+    if (s.crime.streak == null) s.crime.streak = 0;   // consecutive clean jobs
+    if (s.crime.bestScore == null) s.crime.bestScore = 0;
     return s.crime;
+  }
+
+  // ---------- 🧰 Black-market gear: permanent upgrades that bend the odds ----------
+  // Each tool stacks: risk multiplies down, pay multiplies up, sentence shrinks,
+  // cool speeds heat decay. They apply to EVERY job (quick crimes + hard heists).
+  const CRIME_GEAR = [
+    { id: "burner",   name: "Burner Phone",            icon: "📱", cost: 2500,  risk: 0.92,            desc: "Untraceable comms. −8% catch risk on every job." },
+    { id: "lockpicks",name: "Pro Lockpick Set",        icon: "🔓", cost: 9000,             pay: 1.12, desc: "In faster, out cleaner. +12% take on every score." },
+    { id: "fakeid",   name: "Drawer of Fake IDs",      icon: "🪪", cost: 28000, risk: 0.85,            desc: "A new face for every job. −15% catch risk." },
+    { id: "scanner",  name: "Police Scanner",          icon: "📻", cost: 70000, risk: 0.90, cool: 1.7, desc: "Hear them coming. −10% risk, heat cools 70% faster." },
+    { id: "getaway",  name: "Getaway Driver",          icon: "🏎️", cost: 180000,risk: 0.82, pay: 1.10, desc: "Always idling out back. −18% risk, +10% take." },
+    { id: "lawyer",   name: "Mob Lawyer on Retainer",  icon: "⚖️", cost: 450000,           sentence: 0.65, desc: "Beats the rap. −35% jail time if you're caught." },
+    { id: "insider",  name: "Inside Man",              icon: "🕵️", cost: 1.4e6,            pay: 1.25, desc: "Eyes on the inside. +25% take on every score." },
+    { id: "armor",    name: "Body Armor",              icon: "🦺", cost: 3.5e6, risk: 0.80, sentence: 0.8, desc: "Walk away from the worst. −20% risk, −20% jail time." },
+  ];
+  // active season multiplier (Crime Season pays more + cools heat faster)
+  function seasonMod(key) {
+    const m = (WB.SEASONS && WB.SEASONS.mods && WB.SEASONS.mods()) || {};
+    return m[key] || 1;
+  }
+  function gearMods() {
+    const c = crimeState();
+    let risk = 1, pay = 1, sentence = 1, cool = 1;
+    CRIME_GEAR.forEach(g => { if (c.gear[g.id]) {
+      if (g.risk) risk *= g.risk;
+      if (g.pay) pay *= g.pay;
+      if (g.sentence) sentence *= g.sentence;
+      if (g.cool) cool *= g.cool;
+    }});
+    pay *= seasonMod("crimePay");   // 🦹 Crime Season boosts the take
+    cool *= seasonMod("heatCool");  // …and cools heat faster
+    return { risk, pay, sentence, cool };
+  }
+  function buyGear(id) {
+    const s = S(), c = crimeState();
+    const g = CRIME_GEAR.find(x => x.id === id);
+    if (!g) return { ok: false, why: "Unknown tool" };
+    if (c.gear[id]) return { ok: false, why: "Already in the kit" };
+    if (s.money < g.cost) return { ok: false, why: "Can't afford it" };
+    s.money -= g.cost;
+    c.gear[id] = true;
+    return { ok: true, gear: g };
+  }
+  // a run of clean jobs builds a multiplier (resets the moment you're caught)
+  function streakMult() { return 1 + Math.min(crimeState().streak || 0, 12) * 0.04; } // up to ×1.48
+  function bumpStreak(payout) {
+    const c = crimeState();
+    c.streak = (c.streak || 0) + 1;
+    if (payout && payout > (c.bestScore || 0)) c.bestScore = Math.floor(payout);
+  }
+  // shown on the cards so players see the expected take before committing
+  function estPayout(cr) {
+    if (!cr || cr.launder) return 0;
+    const avg = (cr.mins[0] + cr.mins[1]) / 2;
+    return ips() * 60 * avg * gearMods().pay * streakMult() + 50;
+  }
+  function estHardPayout(cr) {
+    const avg = (cr.mins[0] + cr.mins[1]) / 2;
+    const stake = cr.stake(S());
+    return (ips() * 60 * avg + stake * 2.5) * gearMods().pay;
   }
 
   const inPrison = () => crimeState().prisonUntil > now();
@@ -272,6 +335,7 @@ WB.CRIME = (function () {
     c.prisonUntil = now() + sec * 1000;
     c.prisonReason = reason;
     c.timesCaught++;
+    c.streak = 0; // getting pinched breaks the hot streak
     // The heist-bust movie already drove us to jail, so it passes skipCutscene
     // to avoid playing the generic door-knock "arrest" scene on top of it.
     if (!skipCutscene && WB.ROOM && WB.ROOM.play) WB.ROOM.play("arrest"); // sirens, cuffs, the ride downtown
@@ -322,6 +386,7 @@ WB.CRIME = (function () {
       const k = Object.keys(cr.reqSkill)[0];
       p -= S().skills[k].level * 0.0025;
     }
+    p *= gearMods().risk; // black-market tools bend the odds in your favor
     return Math.max(0.03, Math.min(0.9, p));
   }
 
@@ -346,18 +411,22 @@ WB.CRIME = (function () {
     if (caught) {
       c.scamFail++;
       addHeat(cr.heat * 0.6);
-      const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
-      goToPrison(sentence, cr.name);
+      const sentence = Math.round(cr.sentence * (1 + c.heat / 200) * gearMods().sentence);
+      goToPrison(sentence, cr.name); // also resets the streak
       return { icon: "🚔", title: "Caught!", win: false,
         lines: [WB.pick(cr.flavorLoss), `Sentence: ${WB.fmtTime(sentence)}.`], money: 0, caught: true };
     }
-    const payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + 50;
+    let payout = (ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + 50) * gearMods().pay;
+    const sm = streakMult();
+    payout = Math.floor(payout * sm);
     addDirtyMoney(payout);
     addHeat(cr.heat);
     c.crimesDone++;
+    bumpStreak(payout);
     WB.GAME.gainXp("business", 30);
+    const streakTxt = c.streak > 1 ? ` · 🔥 ${c.streak} ${WB.t("clean in a row")} (×${sm.toFixed(2)})` : "";
     return { icon: cr.icon, title: cr.name + " — Success", win: true,
-      lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)}. Heat is rising though.`], money: payout };
+      lines: [WB.THOUGHTS.fill(WB.pick(cr.flavorWin)), `Take: ${WB.fmt(payout, true)}.${streakTxt}`], money: payout };
   }
 
   // called from scam.js when a texting scam resolves
@@ -368,6 +437,7 @@ WB.CRIME = (function () {
       c.victimsScammed[victimId] = (c.victimsScammed[victimId] || 0) + 1;
       addDirtyMoney(payout);
       addHeat(7);
+      bumpStreak(payout);
       WB.GAME.gainXp("business", 40);
     } else {
       c.scamFail++;
@@ -383,7 +453,7 @@ WB.CRIME = (function () {
   // tick: heat decay + auto-release
   function tick(dt) {
     const c = crimeState();
-    if (c.heat > 0) c.heat = Math.max(0, c.heat - 0.04 * dt);
+    if (c.heat > 0) c.heat = Math.max(0, c.heat - 0.04 * dt * gearMods().cool);
     if (c.prisonUntil && c.prisonUntil <= now()) {
       c.prisonUntil = 0;
       if (WB.ROOM && WB.ROOM.play) WB.ROOM.play("release"); // gates open, sunrise, walk home
@@ -488,9 +558,10 @@ WB.CRIME = (function () {
     // Planning quality (0..1) swings the risk hard: a tight plan is much safer,
     // a sloppy one is actively dangerous.
     if (planQ != null) risk *= Math.max(0.25, 1.15 - planQ * 0.9);
+    risk *= gearMods().risk; // tools help on the big jobs too
     const caught = WB.chance(risk);
     if (caught) {
-      const sentence = Math.round(cr.sentence * (1 + c.heat / 200));
+      const sentence = Math.round(cr.sentence * (1 + c.heat / 200) * gearMods().sentence);
       return { hard: true, win: false, caught: true, withFriend, crew, job: cr.name, icon: "🚔",
         title: "Heist Failed!", money: -el.cost, cost: el.cost, sentence, heatAdd: cr.heat * 0.7,
         lines: [WB.pick(cr.flavorLoss), `Lost your ${WB.fmt(el.cost, true)} stake. Sentence: ${WB.fmtTime(sentence)}.`] };
@@ -498,6 +569,7 @@ WB.CRIME = (function () {
     // Payouts are deliberately big — heists are the marquee high-risk feature.
     let payout = ips() * 60 * WB.rand(cr.mins[0], cr.mins[1]) + el.cost * 2.5;
     if (crew >= 2) payout *= 1.6 + (crew - 2) * 0.2; // crew2×1.6, +0.2 per extra member
+    payout *= gearMods().pay; // black-market gear boosts the take
     payout = Math.floor(payout);
     return { hard: true, win: true, caught: false, withFriend, crew, job: cr.name, icon: cr.icon,
       title: cr.name + " — Success", money: payout, cost: el.cost, heatAdd: cr.heat,
@@ -518,10 +590,12 @@ WB.CRIME = (function () {
       addDirtyMoney(r.money);
       addHeat(r.heatAdd || 0);
       c.crimesDone++;
+      bumpStreak(r.money);
       WB.GAME.gainXp("business", 80);
     }
   }
 
-  return { CRIMES, HARD_CRIMES, CATS, hasCar, eligibleHard, commitHard, finalizeHardJob, crimeState, commit, eligible, catchChance,
-    inPrison, prisonLeft, heat, addHeat, addDirtyMoney, goToPrison, bailCost, postBail, scamResolved, tick };
+  return { CRIMES, HARD_CRIMES, CATS, CRIME_GEAR, hasCar, eligibleHard, commitHard, finalizeHardJob, crimeState, commit, eligible, catchChance,
+    inPrison, prisonLeft, heat, addHeat, addDirtyMoney, goToPrison, bailCost, postBail, scamResolved, tick,
+    gearMods, buyGear, streakMult, estPayout, estHardPayout };
 })();

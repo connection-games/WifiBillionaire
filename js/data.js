@@ -49,6 +49,14 @@ WB.DATA = (function () {
       tiers: tiers(["Raspberry Pi Shelf", "Closet Server", "Half Rack", "Full Rack", "Server Room", "Mini Datacenter", "Edge Network", "Orbital Datacenter"], 5000, 9) },
     office:   { label: "Office",        icon: "🏢", effect: "income", val: 0.14,
       tiers: tiers(["Corner of Bedroom", "Coffee Shop Regular", "Coworking Desk", "Private Office", "Startup Loft", "Company Floor", "HQ Building", "Campus Tower"], 8000, 9.5) },
+    phone:    { label: "Phone",         icon: "📱", effect: "income", val: 0.07,
+      tiers: tiers(["Cracked Hand-Me-Down", "Budget Android", "Last-Gen Flagship", "New Flagship", "Pro Max", "Foldable", "Satellite Phone", "Neural Implant"], 250, 7.6) },
+    headset:  { label: "Headset",       icon: "🎧", effect: "xp", val: 0.05,
+      tiers: tiers(["Earbuds From a Drawer", "Gaming Headset", "Studio Cans", "Noise-Cancelling Pro", "Open-Back Audiophile", "Wireless Reference", "Spatial Audio Rig", "Direct Cortex Audio"], 90, 6.6) },
+    mic:      { label: "Microphone",    icon: "🎙️", effect: "income", val: 0.05,
+      tiers: tiers(["Laptop Mic", "Clip-On Lav", "USB Condenser", "Broadcast Dynamic", "Studio Shotgun", "Tube Condenser", "Phased Array", "Thought Capture"], 120, 6.8) },
+    webcam:   { label: "Camera",        icon: "📷", effect: "income", val: 0.04,
+      tiers: tiers(["Potato 480p", "720p Webcam", "1080p Streamer", "4K Cam", "Mirrorless Rig", "Cinema Camera", "Volumetric Capture", "Holo Scanner"], 100, 6.7) },
   };
 
   // ---------- Careers (5 paths) ----------
@@ -290,7 +298,7 @@ WB.DATA = (function () {
 })();
 
 // ---------- Build version (keep in sync with package.json) ----------
-WB.VERSION = "7.3.2";
+WB.VERSION = "7.4.0";
 
 // ---------- Number formatting ----------
 WB.fmt = function (n, money) {

@@ -275,6 +275,14 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.4.0 — Crime pays 🦹", items: [
+      "🧰 NEW: Black-Market Gear — eight permanent tools (burner phone, fake IDs, police scanner, getaway driver, mob lawyer, inside man, body armor…) that lower your risk, boost your take, cut jail time, and cool heat. They stack on every job.",
+      "🔥 NEW: clean-streak multiplier — pull jobs without getting caught and your take climbs (up to +48%); get pinched and it resets.",
+      "💰 Every crime now shows its estimated take up front, and a rap sheet tracks your jobs, clean %, biggest score and busts.",
+      "🛒 More shop: new gear (Phone, Headset, Microphone, Camera) and new lifestyle (Private Chef, Penthouse Suite, Racehorse, Private Island — three of them usable).",
+      "🦹 NEW: SEASONS — a calendar-driven theme that bends the game. Crime Season is LIVE now: +25% on every score and heat cools 50% faster. (See the banner up top.)",
+      "🎩 Fresh crime-themed app icon.",
+    ]},
     { v: "v7.3.2 — Family business 🕴️🌍", items: [
       "🔧 Fixed: your syndicate now STAYS. Leaving and logging back in keeps your family — no more starting over (it was being restored before sign-in finished).",
       "⚙️ NEW: a clean Mafia management screen — tap your family's name to manage the pot, members, roles & cuts, recruiting, and your turf, all in one popup.",
@@ -1858,6 +1866,7 @@ WB.UI = (function () {
           <span class="risk-pill" style="--rp:${riskCol}">${chance === null ? "🧼 −" + WB.t("heat") : chance + "% " + WB.t("risk")}</span></div>
         <b class="crime-name">${WB.t(cr.name)}</b>
         <div class="crime-desc">${crimeDescCache[cr.id]}</div>
+        ${cr.launder ? "" : `<div class="crime-take">💰 ${WB.t("Est. take")} <b>${WB.fmt(C.estPayout(cr), true)}</b></div>`}
         <div class="crime-meta">${cr.sentence ? `⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}` : WB.t("Washes your dirty reputation")}</div>
         ${el.ok
           ? `<button class="btn crime-btn ${jailed ? "locked" : ""}" data-act="crime" data-key="${cr.id}">${WB.t(cr.launder ? "🧼 Launder" : "Commit")}</button>`
@@ -1876,6 +1885,7 @@ WB.UI = (function () {
           <span class="risk-pill" style="--rp:${riskCol}">${chance}% ${WB.t("risk")}</span></div>
         <b class="crime-name">${WB.t(cr.name)}</b>
         <div class="crime-desc">${crimeDescCache[cr.id]}</div>
+        <div class="crime-take">💰 ${WB.t("Est. take")} <b>${WB.fmt(C.estHardPayout(cr), true)}</b></div>
         <div class="crime-stake">🎟️ ${WB.t("Stake")} ${WB.fmt(stake, true)}${cr.reqCar ? ` · 🚗 ${WB.t("car")}` : ""}</div>
         <div class="crime-meta">⛓️ ${WB.fmtTime(cr.sentence)} ${WB.t("if caught")}</div>
         ${el.ok
@@ -1892,11 +1902,21 @@ WB.UI = (function () {
     const jailed = C.inPrison();
     const hs = heat < 20 ? ["❄️", "Cold", "#34c759"] : heat < 45 ? ["🌤️", "Warm", "#ffd60a"] : heat < 70 ? ["🔥", "Hot", "#ff9f0a"] : ["🚨", "Blazing", "#ff453a"];
 
+    const jobsDone = (c.crimesDone || 0) + (c.scamSuccess || 0);
+    const cleanPct = (jobsDone + c.timesCaught) ? Math.round(jobsDone / (jobsDone + c.timesCaught) * 100) : 100;
+    const streak = c.streak || 0;
+    const sMult = C.streakMult ? C.streakMult() : 1;
     let html = `
       <div class="crime-hero">
         <div class="crime-hero-top"><b>🌆 The Underworld</b><span class="heat-chip" style="--hc:${hs[2]}">${hs[0]} ${hs[1]}</span></div>
-        <div class="heat-row"><span class="heat-num">${heat}</span><span class="heat-cap">/ 100 heat</span></div>
+        <div class="heat-row"><span class="heat-num">${heat}</span><span class="heat-cap">/ 100 heat</span>${streak > 1 ? `<span class="streak-chip">🔥 ${streak} ${WB.t("streak")} ×${sMult.toFixed(2)}</span>` : ""}</div>
         <div class="heat-bar"><div class="heat-fill" style="width:${heat}%"></div></div>
+        <div class="rap-sheet">
+          <span class="rap-stat">🦹 <b>${jobsDone}</b> ${WB.t("jobs")}</span>
+          <span class="rap-stat">✅ <b>${cleanPct}%</b> ${WB.t("clean")}</span>
+          <span class="rap-stat">🏆 <b>${WB.fmt(c.bestScore || 0, true)}</b> ${WB.t("best")}</span>
+          <span class="rap-stat">⛓️ <b>${c.timesCaught || 0}</b> ${WB.t("busts")}</span>
+        </div>
         <div class="crime-hero-sub">Crimes raise heat · heat raises catch odds · time (or laundering) cools it down</div>
       </div>`;
 
@@ -1944,6 +1964,27 @@ WB.UI = (function () {
       list.forEach(cr => { html += crimeQuickCard(cr, C, jailed); });
       html += `</div>`;
     }
+    html += crimeGearSection(C);
+    return html;
+  }
+  // 🧰 the black-market shop — permanent tools that bend the odds on every job
+  function crimeGearSection(C) {
+    const c = C.crimeState(), mods = C.gearMods();
+    let html = `<div class="section-title">🧰 ${WB.t("Black-Market Gear")} <span class="hard-hint">${WB.t("· a permanent edge on every job")}</span></div>`;
+    html += `<div class="gear-summary"><span>🎚️ ${WB.t("Risk")} <b style="color:${mods.risk < 1 ? "var(--green)" : "var(--text)"}">×${mods.risk.toFixed(2)}</b></span><span>💰 ${WB.t("Take")} <b style="color:${mods.pay > 1 ? "var(--green)" : "var(--text)"}">×${mods.pay.toFixed(2)}</b></span><span>⛓️ ${WB.t("Sentence")} <b style="color:${mods.sentence < 1 ? "var(--green)" : "var(--text)"}">×${mods.sentence.toFixed(2)}</b></span></div>`;
+    html += `<div class="crime-grid">`;
+    C.CRIME_GEAR.forEach(g => {
+      const has = !!c.gear[g.id], can = st.money >= g.cost;
+      html += `<div class="crime-card gear ${has ? "owned" : (can ? "" : "locked")}">
+        <div class="crime-card-head"><span class="crime-ico">${g.icon}</span>${has ? `<span class="risk-pill" style="--rp:#34c759">✓ ${WB.t("owned")}</span>` : ""}</div>
+        <b class="crime-name">${WB.t(g.name)}</b>
+        <div class="crime-desc">${WB.t(g.desc)}</div>
+        ${has
+          ? `<div class="crime-meta">🧰 ${WB.t("In your kit")}</div>`
+          : `<button class="btn buy ${can ? "" : "locked"}" data-act="buygear" data-key="${g.id}">${WB.t("Acquire")}<span class="cost">${WB.fmt(g.cost, true)}</span></button>`}
+      </div>`;
+    });
+    html += `</div>`;
     return html;
   }
   function doHardJob(id, withFriend, friend) {
@@ -2567,6 +2608,12 @@ WB.UI = (function () {
     else if (act === "trackchal") { toggleTrackChallenge(key); return; }
     else if (act === "hardjob") { doHardJob(key, false); return; }
     else if (act === "heistfriend") { openLobbyCreate(key); return; }
+    else if (act === "buygear") {
+      const r = WB.CRIME.buyGear(key);
+      if (!r.ok) { toast("🚫 " + WB.t(r.why), "bad"); }
+      else { if (WB.SOUND) WB.SOUND.play("cash"); toast(`🧰 ${r.gear.icon} ${WB.t(r.gear.name)} — ${WB.t("added to your kit.")}`, "good"); renderTab(true); renderHud(); }
+      return;
+    }
     else if (act === "crimecat") { crimeCat = key; }
     else if (act === "lbrefresh") { loadLeaderboard(); return; }
     else if (act === "openscam") WB.SCAM.open();
