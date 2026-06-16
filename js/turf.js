@@ -327,11 +327,14 @@
 }
 @keyframes turfPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
 .turf-panel {
-  position: relative; z-index: 3; pointer-events: auto; flex: 0 0 auto;
+  position: relative; z-index: 3; flex: 0 0 auto;
   max-height: 0; overflow: hidden; transition: max-height .25s ease, padding .25s ease;
   padding: 0 9px; border-top: 1px solid rgba(255,255,255,0.0);
   background: linear-gradient(0deg, rgba(8,10,22,0.96), rgba(14,18,38,0.9));
 }
+/* the panel re-enables clicks ONLY while the overlay is open — otherwise its
+   pointer-events would leak through and the room would be "touchable" when closed */
+#turf-overlay.show .turf-panel { pointer-events: auto; }
 .turf-panel.show { max-height: 130px; padding: 8px 9px; border-top-color: rgba(255,255,255,0.08); }
 .tp-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #fff; }
 .tp-tag { margin-left: auto; font-size: 8px; letter-spacing: .08em; padding: 2px 6px; border-radius: 6px; }

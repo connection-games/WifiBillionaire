@@ -190,7 +190,46 @@ b { font-weight: 600; }
 
 /* ---------- Activity bar + hustle ---------- */
 #controls { display: flex; gap: 10px; align-items: stretch; }
-#activities { display: flex; gap: 7px; flex-wrap: wrap; flex: 1; }
+#activities { display: flex; gap: 7px; flex: 1; min-width: 0; }
+
+/* ---- Compact Focus picker (folds the old wall of activity buttons) ---- */
+.focus-card {
+  position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px;
+  padding: 0 14px; background: var(--panel); border: 1.5px solid var(--border-soft);
+  border-radius: 14px; cursor: pointer; text-align: left; color: var(--text);
+  box-shadow: var(--shadow-sm); transition: transform .12s, box-shadow .15s, border-color .15s;
+}
+.focus-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--shadow-md); }
+.focus-card-icon { font-size: 23px; flex: 0 0 auto; }
+.focus-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.focus-card-label { font-size: 9px; letter-spacing: .14em; color: var(--muted); font-weight: 700; }
+.focus-card-name { font-size: 14px; font-weight: 800; letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focus-card-chev { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.focus-card::after { content: ""; position: absolute; top: 8px; right: 11px; width: 7px; height: 7px; border-radius: 50%; background: #34c759; animation: actLiveDot 1.4s ease-out infinite; }
+
+#focus-panel {
+  position: fixed; z-index: 90; width: 320px; max-height: 62vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 18px;
+  box-shadow: var(--shadow-lg); padding: 10px; display: none;
+}
+#focus-panel.open { display: block; animation: actpop 0.22s cubic-bezier(0.18, 1.2, 0.4, 1); }
+.focus-panel-head { font-size: 13px; font-weight: 800; padding: 4px 6px 9px; }
+.focus-group { margin-bottom: 9px; }
+.focus-group-h { font-size: 10px; letter-spacing: .07em; color: var(--muted); font-weight: 700; margin: 2px 6px 7px; text-transform: uppercase; }
+.focus-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.focus-opt {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px; cursor: pointer;
+  background: var(--panel2); border: 1.5px solid var(--border-soft); border-radius: 12px;
+  color: var(--text); font: inherit; text-align: left; transition: transform .1s, border-color .15s, background .15s;
+}
+.focus-opt:hover { transform: translateY(-1px); border-color: var(--accent); }
+.focus-opt-ico { font-size: 18px; flex: 0 0 auto; }
+.focus-opt-name { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focus-opt-tag { font-size: 10px; flex: 0 0 auto; color: var(--muted); }
+.focus-opt-tag.now { color: #34c759; }
+.focus-opt.active { background: linear-gradient(180deg, var(--accent-tint), transparent); border-color: var(--accent); }
+.focus-opt.active .focus-opt-name { color: var(--accent); font-weight: 800; }
+.focus-opt.locked { opacity: .45; cursor: not-allowed; }
 .act-btn {
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -2504,17 +2543,19 @@ html[data-theme="dark"] .lobby-invite-btn.invited { background: var(--panel2); }
    straight into the room. A taller min-height keeps it generous. Source order =
    highest priority, so this wins over the earlier "roomier" pass. */
 @media (min-width: 1101px) {
-  #scene { flex: 1.95; padding: 13px 16px; gap: 9px; }    /* wider column, less air around it */
-  #side  { min-width: 360px; max-width: 452px; }          /* hand that width back to the room */
-  #room-wrap { min-height: 200px; }                       /* a floor that still fits short windows */
-  #actions-bar { height: 54px; }                          /* shave the stacked widgets… */
-  #char-panel { padding: 11px 16px 10px; gap: 8px; }      /* …so the room can grow taller */
-  #char-meters { gap: 7px 16px; }
-  #status-icon { width: 36px; height: 36px; font-size: 20px; }
+  #scene { flex: 2.05; padding: 12px 16px; gap: 8px; }    /* wider column, less air around it */
+  #side  { min-width: 352px; max-width: 444px; }          /* hand that width back to the room */
+  /* the room is the star: center it and give it a generous floor now that the
+     focus picker folded the old button wall into a single row */
+  #room-wrap { min-height: 240px; display: flex; align-items: center; justify-content: center; }
+  #actions-bar { height: 52px; }                          /* shave the stacked widgets… */
+  #char-panel { padding: 10px 16px 9px; gap: 7px; }       /* …so the room can grow taller */
+  #char-meters { gap: 6px 16px; }
+  #status-icon { width: 34px; height: 34px; font-size: 19px; }
 }
 /* Narrow / stacked layout: the room is a fixed band there — make that band taller too. */
 @media (max-width: 1100px) {
-  #room-wrap { height: 380px; }
+  #room-wrap { height: 400px; }
 }
 
 /* v7.1 — gang management (roles, cuts, rename) */

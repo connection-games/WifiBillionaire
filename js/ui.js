@@ -275,6 +275,11 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.4.1 — Bigger room, cleaner UI 🔍", items: [
+      "🔍 The pixel room is now front and center — much bigger, and the whole left side is calmer.",
+      "🎯 The wall of focus buttons is folded into ONE tidy picker: tap it to open a grouped menu (Hustles / Grow & Live) and choose what he's doing.",
+      "🗺️ Fixed: the room is only touchable while the turf map is open — no more stray taps when it's closed.",
+    ]},
     { v: "v7.4.0 — Crime pays 🦹", items: [
       "🧰 NEW: Black-Market Gear — eight permanent tools (burner phone, fake IDs, police scanner, getaway driver, mob lawyer, inside man, body armor…) that lower your risk, boost your take, cut jail time, and cool heat. They stack on every job.",
       "🔥 NEW: clean-streak multiplier — pull jobs without getting caught and your take climbs (up to +48%); get pinched and it resets.",
@@ -907,7 +912,7 @@ WB.UI = (function () {
   const TUT_STEPS = [
     { target: "room-wrap",   icon: "📶", title: "Meet your entrepreneur", text: "He lives in his parents' bedroom and dreams in dollar signs. You don't control him — you manage him." },
     { target: "hustle-btn",  icon: "💪", title: "The Hustle button", text: "Smash it for instant cash. Clicks get stronger as your income grows." },
-    { target: "activities",  icon: "🎯", title: "Set his focus", text: "Pick what he works on. He earns more and gains XP in whatever you choose. Sleep is not optional." },
+    { target: "activities",  icon: "🎯", title: "Set his focus", text: "Tap to pick what he works on — code, content, crypto, crime and more. He earns and gains XP in whatever you choose. Sleep is not optional." },
     { target: "actions-bar", icon: "⚡", title: "Run actions", text: "Freelance gigs, code sprints, videos — start one, collect the results when it glows." },
     { target: "side",        icon: "🛒", title: "Spend it wisely", text: "Gear, homes, careers, crime. Everything you buy shows up in the room." },
     { target: "goal-banner", icon: "🎯", title: "Follow the goal", text: "The goal bar always shows your next milestone. Now go — from this bedroom to a billion. 📈" },
@@ -2535,18 +2540,81 @@ WB.UI = (function () {
 
   // ---------- Activity bar (free vs jail) ----------
   let lastActBarJailed = null;
-  function buildActivities(jailed) {
-    const keys = jailed
-      ? ["workout", "yard", "study", "rest"]                                  // what you can do behind bars
-      : Object.keys(D.ACTIVITIES).filter(k => !D.ACTIVITIES[k].jailOnly);     // normal life
-    $("activities").innerHTML = keys.map(key => {
-      const a = D.ACTIVITIES[key];
-      return `<button class="act-btn" data-focus="${key}"><span>${a.icon}</span><small>${WB.t(a.name)}</small></button>`;
-    }).join("");
-    // make sure the current focus is valid for the context
+  // The Focus is chosen from ONE compact picker that opens a grouped popover —
+  // far cleaner than a wall of buttons, and it frees vertical space for the room.
+  const FOCUS_GROUPS = [
+    { name: "Hustles", icon: "💼", keys: ["code", "content", "crypto", "ai", "gamedev", "mafia"] },
+    { name: "Grow & Live", icon: "🌿", keys: ["study", "rest", "grass"] },
+  ];
+  const JAIL_FOCUS_GROUPS = [
+    { name: "Behind Bars", icon: "🔒", keys: ["workout", "yard", "study", "rest"] },
+  ];
+  let focusPanelOpen = false;
+  function buildFocusPicker() {
+    $("activities").innerHTML = `<button class="focus-card" id="focus-card" title="${WB.t("Change what you're doing")}">
+      <span class="focus-card-icon" id="focus-card-icon">💻</span>
+      <span class="focus-card-main">
+        <span class="focus-card-label">${WB.t("DOING")}</span>
+        <span class="focus-card-name" id="focus-card-name">—</span>
+      </span>
+      <span class="focus-card-chev">▾</span>
+    </button>`;
+    updateFocusCard();
+  }
+  // keep the focus valid for the context (jailed ↔ free)
+  function fixFocusForContext(jailed) {
     if (jailed && !["workout", "yard", "study", "rest"].includes(st.focus)) WB.GAME.setFocus("yard");
     if (!jailed && D.ACTIVITIES[st.focus] && D.ACTIVITIES[st.focus].jailOnly) WB.GAME.setFocus("code");
   }
+  function updateFocusCard() {
+    const a = D.ACTIVITIES[st.focus] || D.ACTIVITIES.code;
+    const ic = $("focus-card-icon"), nm = $("focus-card-name");
+    if (ic) ic.textContent = a.icon;
+    if (nm) nm.textContent = WB.t(a.name);
+  }
+  function renderFocusPanel() {
+    const p = $("focus-panel"); if (!p) return;
+    const jailed = !!(WB.CRIME && WB.CRIME.inPrison());
+    const groups = jailed ? JAIL_FOCUS_GROUPS : FOCUS_GROUPS;
+    p.innerHTML = `<div class="focus-panel-head"><b>${WB.t("What are you doing?")}</b></div>` +
+      groups.map(g => {
+        const rows = g.keys.map(k => {
+          const a = D.ACTIVITIES[k]; if (!a) return "";
+          const locked = a.reqEra && st.era < a.reqEra;
+          const active = st.focus === k;
+          return `<button class="focus-opt ${active ? "active" : ""} ${locked ? "locked" : ""}" data-focus="${k}"${locked ? ` title="${WB.t("Unlocks in")} ${D.ERAS[a.reqEra].year}"` : ""}>
+            <span class="focus-opt-ico">${a.icon}</span><span class="focus-opt-name">${WB.t(a.name)}</span>${locked ? `<span class="focus-opt-tag">🔒</span>` : (active ? `<span class="focus-opt-tag now">●</span>` : "")}</button>`;
+        }).join("");
+        return `<div class="focus-group"><div class="focus-group-h">${g.icon} ${WB.t(g.name)}</div><div class="focus-group-grid">${rows}</div></div>`;
+      }).join("");
+  }
+  function openFocusPanel() {
+    let p = $("focus-panel");
+    if (!p) {
+      p = document.createElement("div");
+      p.id = "focus-panel";
+      document.body.appendChild(p);
+      p.addEventListener("click", e => {
+        e.stopPropagation();
+        const b = e.target.closest("[data-focus]");
+        if (!b || b.classList.contains("locked")) return;
+        if (WB.SOUND) WB.SOUND.play("click");
+        WB.GAME.setFocus(b.dataset.focus);
+        closeFocusPanel();
+        updateFocusCard(); renderHud();
+      });
+    }
+    renderFocusPanel();
+    focusPanelOpen = true;
+    const card = $("focus-card"); if (!card) return;
+    const r = card.getBoundingClientRect();
+    p.classList.add("open");
+    const pw = p.offsetWidth || 320;
+    p.style.left = Math.min(Math.max(12, r.left + r.width / 2 - pw / 2), innerWidth - pw - 12) + "px";
+    p.style.bottom = (innerHeight - r.top + 10) + "px";
+  }
+  function closeFocusPanel() { focusPanelOpen = false; const p = $("focus-panel"); if (p) p.classList.remove("open"); }
+  function toggleFocusPanel() { focusPanelOpen ? closeFocusPanel() : openFocusPanel(); }
 
   let tabHovered = false; // periodic refreshes pause while the pointer is in the panel (anti hover-flicker)
   function renderTab(force) {
@@ -2794,17 +2862,11 @@ WB.UI = (function () {
       $("project-fill").style.width = Math.min(100, p.progress / p.required * 100) + "%";
     } else pb.style.display = "none";
 
-    // Activity buttons — swap the whole bar between free/jail sets when jail state flips
+    // Focus picker — fix the focus when jail state flips, keep the card in sync,
+    // and refresh the popover live if it happens to be open.
     const jailedNow = !!(WB.CRIME && WB.CRIME.inPrison());
-    if (jailedNow !== lastActBarJailed) { lastActBarJailed = jailedNow; buildActivities(jailedNow); }
-    document.querySelectorAll("#activities .act-btn").forEach(b => {
-      const f = b.dataset.focus;
-      b.classList.toggle("active", st.focus === f);
-      const a = D.ACTIVITIES[f];
-      const locked = a.reqEra && st.era < a.reqEra;
-      b.classList.toggle("locked", !!locked);
-      b.title = locked ? `Unlocks in ${D.ERAS[a.reqEra].year}` : WB.t(a.name);
-    });
+    if (jailedNow !== lastActBarJailed) { lastActBarJailed = jailedNow; fixFocusForContext(jailedNow); if (focusPanelOpen) renderFocusPanel(); }
+    updateFocusCard();
 
     $("hustle-val").textContent = "+" + WB.fmt(G.clickValue(), true);
     $("prestige-pill").style.display = G.legacyGain() > 0 ? "" : "none";
@@ -3084,8 +3146,7 @@ WB.UI = (function () {
   function boot() {
     // Activities click handler (the bar itself is built after state loads, below)
     $("activities").addEventListener("click", e => {
-      const b = e.target.closest(".act-btn");
-      if (b && !b.classList.contains("locked")) { if (WB.SOUND) WB.SOUND.play("click"); WB.GAME.setFocus(b.dataset.focus); renderHud(); }
+      if (e.target.closest("#focus-card")) { e.stopPropagation(); toggleFocusPanel(); }
     });
 
     // Tabs (rebuilt dynamically — the Empire tab appears when the secret unlocks)
@@ -3137,7 +3198,7 @@ WB.UI = (function () {
     $("notif-btn").addEventListener("click", e => { e.stopPropagation(); toggleNotifPanel(); });
     $("notif-clear").addEventListener("click", () => { notifs = []; saveNotifs(); renderNotifPanel(); renderNotifBadge(); });
     $("notif-panel").addEventListener("click", e => e.stopPropagation());
-    document.addEventListener("click", () => { toggleNotifPanel(false); closeActPanel(); });
+    document.addEventListener("click", () => { toggleNotifPanel(false); closeActPanel(); closeFocusPanel(); });
     renderNotifBadge();
 
     // pause periodic side-panel refreshes while hovering (prevents button flicker)
@@ -3162,7 +3223,7 @@ WB.UI = (function () {
     initTheme();
     const res = WB.GAME.init(hooks);
     st = res.state;
-    buildActivities(!!(WB.CRIME && WB.CRIME.inPrison())); // now that state exists
+    buildFocusPicker(); fixFocusForContext(!!(WB.CRIME && WB.CRIME.inPrison())); // now that state exists
     WB.ROOM.init($("room-canvas"), () => st);
     renderTabBar();
     renderHud();
