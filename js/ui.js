@@ -11,6 +11,7 @@ WB.UI = (function () {
   let lastActionsHtml = "";
   let modalIsOpen = false;
   let lastMoney = 0;
+  let dispMoney = null; // smoothed wallet value for the count-up roll
 
   // ============================================================ Bubbles / toasts
   let bubbleTimer = null;
@@ -139,6 +140,12 @@ WB.UI = (function () {
       </div>`;
     box.appendChild(el);
     if (WB.SOUND) { const snd = { level: "level", ach: "level", goal: "win", era: "win", viral: "win" }[type]; if (snd) WB.SOUND.play(snd); }
+    // every milestone gets a celebratory beat — a gold wash + shake for the big
+    // ones (era / housing / career / global events), a soft teal wash otherwise.
+    if (WB.JUICE) {
+      if (type === "era" || type === "viral") { WB.JUICE.flash("rgba(255,206,77,0.26)"); WB.JUICE.shake(4); }
+      else if (type === "ach" || type === "goal" || type === "level") WB.JUICE.flash("rgba(94,234,212,0.20)");
+    }
     while (box.children.length > 4) box.removeChild(box.firstChild);
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 400); }, 6000);
   }
@@ -275,6 +282,13 @@ WB.UI = (function () {
 
   let settingsTab = "general";
   const UPDATES = [
+    { v: "v7.5.0 — Game feel ✨", items: [
+      "🪙 Everything is juicier now — tapping HUSTLE showers coins, wins rain gold, and the wallet rolls UP as the money lands.",
+      "🔥 NEW: HUSTLE COMBOS — tap fast to build a streak for a bonus and escalating effects. Keep the rhythm going!",
+      "💥 Crits, big payouts and busts now hit with a screen flash + shake, and every milestone (new era, home, career) gets a proper celebration.",
+      "💸 Buying things finally feels good — a satisfying ka-ching and coin pop on every purchase.",
+      "♿ All of it respects the effects toggle (Settings) and reduced-motion.",
+    ]},
     { v: "v7.4.2 — Fits anywhere 📐", items: [
       "📐 The whole game now fits neatly in small landscape windows (down to 800×450) without scrolling — room, controls and shop all on screen, text readable.",
       "🧹 Tidied the layout for embedded play.",
@@ -2647,6 +2661,7 @@ WB.UI = (function () {
     if (!btn) return;
     const G = WB.GAME;
     const act = btn.dataset.act, key = btn.dataset.key;
+    const moneyBefore = st.money; // to fire purchase juice only when a buy succeeds
     if (act === "crime") {
       const r = WB.CRIME.commit(key);
       if (r && r.refused) { toast("🚫 " + r.refused, "bad"); }
@@ -2712,6 +2727,15 @@ WB.UI = (function () {
       if (G.legacyGain() > 0 && confirm(`Rebirth now for +${G.legacyGain()} Legacy Points? Your current life resets.`)) G.doPrestige();
     }
     renderTab(true);
+    // 💸 purchase feel — any action that actually spent money gets a ka-ching:
+    // coins off the button + a wallet pop, with a gold flash for the big buys.
+    if (st.money < moneyBefore - 0.5 && WB.JUICE) {
+      WB.JUICE.coins(btn, 8, { power: 1.05 });
+      WB.JUICE.pulse($("money"));
+      const big = ["housing", "career", "venture", "prestige"].includes(act);
+      if (big) { WB.JUICE.flash("rgba(255,206,77,0.2)"); WB.JUICE.shake(4); } // milestone toast already plays a sound
+      else if (WB.SOUND) WB.SOUND.play("cash");
+    }
   }
 
   // ============================================================ Header / left panel
@@ -2819,7 +2843,11 @@ WB.UI = (function () {
     const G = WB.GAME, r = st.res;
     const money = st.money;
     const moneyEl = $("money");
-    moneyEl.textContent = WB.fmt(money, true);
+    // smooth count-up: earnings roll UP toward the real total for a lively wallet;
+    // spends and resets snap instantly so the number is never misleading.
+    if (dispMoney === null || money <= dispMoney || money - dispMoney > dispMoney + 5e5) dispMoney = money;
+    else dispMoney = Math.min(money, dispMoney + Math.max(1, (money - dispMoney) * 0.3));
+    moneyEl.textContent = WB.fmt(dispMoney, true);
     if (money > lastMoney * 1.2 + 100) {
       moneyEl.classList.remove("pop"); void moneyEl.offsetWidth; moneyEl.classList.add("pop");
     }
@@ -3077,6 +3105,12 @@ WB.UI = (function () {
     openModal(`<div class="ev-icon">${icon}</div><h2>${title}</h2>
       <div class="result-lines">${lines.map(l => `<p>${l}</p>`).join("")}</div>${moneyLine}
       <button class="btn primary" id="res-done">OK</button>`);
+    // make wins and losses land: a green coin-shower + gold pop on a payout,
+    // a red flash + shake on a loss/bust.
+    if (WB.JUICE) {
+      if (money > 0) setTimeout(() => { WB.JUICE.coins($("money"), 14, { power: 1.3 }); WB.JUICE.flash("rgba(52,199,89,0.22)"); WB.JUICE.pulse($("money")); }, 130);
+      else if (money < 0) { WB.JUICE.flash("rgba(255,69,58,0.24)"); WB.JUICE.shake(6); }
+    }
     $("res-done").onclick = () => { closeModal(); if (onDone) onDone(); };
   }
 
@@ -3100,6 +3134,16 @@ WB.UI = (function () {
     if ($("prison-bail").textContent !== bail) $("prison-bail").textContent = bail;
   }
 
+  // 🔥 hustle combo state + badge (the badge lives on the hustle button)
+  let hustleCombo = 0, lastHustleAt = 0, comboFade = null;
+  function updateComboBadge() {
+    let b = $("combo-badge");
+    if (!b) { const host = $("hustle-btn"); if (!host) return; b = document.createElement("div"); b.id = "combo-badge"; host.appendChild(b); }
+    if (hustleCombo < 3) { b.classList.remove("show"); return; }
+    b.textContent = "🔥 x" + hustleCombo;
+    b.style.setProperty("--combo", Math.min(hustleCombo, 40));
+    b.classList.add("show"); b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump");
+  }
   function floatMoney(val, x, y, crit) {
     const el = document.createElement("div");
     el.className = "float-money" + (crit ? " crit" : "");
@@ -3192,12 +3236,25 @@ WB.UI = (function () {
         }
       }
       const r = WB.GAME.hustle();
+      // 🔥 COMBO: rapid clicks build a streak that grants a small, bounded bonus
+      // and escalating juice. It decays the moment you stop tapping.
+      hustleCombo = (t2 - lastHustleAt < 850) ? hustleCombo + 1 : 1;
+      lastHustleAt = t2;
+      clearTimeout(comboFade); comboFade = setTimeout(() => { hustleCombo = 0; updateComboBadge(); }, 1150);
+      updateComboBadge();
+      let bonus = 0;
+      if (hustleCombo >= 3 && r.value > 0) { bonus = Math.floor(r.value * Math.min(hustleCombo, 25) * 0.04); if (bonus > 0) WB.GAME.earn(bonus); }
       if (WB.SOUND) WB.SOUND.play(r.crit ? "crit" : "click");
       const rect = $("scene").getBoundingClientRect();
-      floatMoney(r.value, e.clientX - rect.left + WB.rand(-12, 12), e.clientY - rect.top - 14, r.crit);
+      floatMoney(r.value + bonus, e.clientX - rect.left + WB.rand(-12, 12), e.clientY - rect.top - 14, r.crit);
       const btn = $("hustle-btn");
       btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
       if (r.crit) { btn.classList.remove("crit-flash"); void btn.offsetWidth; btn.classList.add("crit-flash"); }
+      if (WB.JUICE) {
+        WB.JUICE.coins({ x: e.clientX, y: e.clientY }, 3 + Math.min(hustleCombo, 14) + (r.crit ? 8 : 0), { power: r.crit ? 1.5 : 1 });
+        if (r.crit) { WB.JUICE.flash("rgba(255,206,77,0.30)"); WB.JUICE.shake(5); WB.JUICE.ring({ x: e.clientX, y: e.clientY }); }
+        else if (hustleCombo > 0 && hustleCombo % 10 === 0) { WB.JUICE.flash("rgba(0,113,227,0.20)"); WB.JUICE.ring({ x: e.clientX, y: e.clientY }, "#0a84ff"); }
+      }
     });
 
     $("settings-btn").addEventListener("click", showSettings);
